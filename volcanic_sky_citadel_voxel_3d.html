@@ -1,0 +1,2952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aethelgard: The Caldera Bastion — High-Density 3D Voxel Observatory</title>
+  <style>
+    :root {
+      --bg-obsidian: #0d0a0e;
+      --panel-bg: rgba(18, 13, 17, 0.84);
+      --panel-bg-strong: rgba(24, 17, 22, 0.94);
+      --border-ember: rgba(255, 122, 45, 0.28);
+      --border-gold: rgba(255, 190, 92, 0.48);
+      --text-primary: #f7ece4;
+      --text-secondary: #c9b2a3;
+      --text-muted: #8c7365;
+      --accent-magma: #ff5e1a;
+      --accent-gold: #ffbe44;
+      --accent-core: #fff275;
+      --accent-moss: #8cb349;
+      --accent-crimson: #ff2a1f;
+      --shadow-heavy: 0 18px 48px rgba(0, 0, 0, 0.72), 0 0 24px rgba(255, 94, 26, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-obsidian);
+      color: var(--text-primary);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    /* Main 3D Viewport Canvas */
+    #viewport-container {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+    }
+
+    #voxel-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+    }
+
+    #voxel-canvas:active {
+      cursor: grabbing;
+    }
+
+    /* Subtle volcanic vignette & scanline frame */
+    .vignette-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+      background:
+        radial-gradient(circle at 50% 48%, transparent 55%, rgba(8, 5, 8, 0.65) 100%),
+        linear-gradient(180deg, rgba(255, 145, 66, 0.05) 0%, transparent 18%, transparent 82%, rgba(255, 60, 0, 0.09) 100%);
+      border: 1px solid rgba(255, 140, 66, 0.16);
+    }
+
+    /* Top Architectural Header Bar */
+    .top-bar {
+      position: fixed;
+      top: 14px;
+      left: 16px;
+      right: 16px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      pointer-events: none;
+    }
+
+    .brand-card {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 18px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-ember);
+      border-left: 3px solid var(--accent-magma);
+      border-radius: 10px;
+      box-shadow: var(--shadow-heavy);
+    }
+
+    .brand-emblem {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      background: radial-gradient(circle at 50% 35%, #fff380 0%, #ff7700 45%, #8f1100 85%, #241216 100%);
+      border: 1px solid rgba(255, 210, 120, 0.65);
+      box-shadow: 0 0 16px rgba(255, 102, 0, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .brand-emblem::after {
+      content: "◆";
+      color: #fffbe0;
+      font-size: 18px;
+      text-shadow: 0 0 8px #ff2a00;
+    }
+
+    .brand-titles h1 {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: linear-gradient(90deg, #fff6e5 0%, #ffc878 55%, #ff7b38 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-titles p {
+      font-size: 11px;
+      color: var(--text-secondary);
+      letter-spacing: 0.04em;
+      margin-top: 2px;
+    }
+
+    /* Telemetry Strip */
+    .telemetry-bar {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-ember);
+      border-radius: 10px;
+      box-shadow: var(--shadow-heavy);
+    }
+
+    .stat-pill {
+      display: flex;
+      flex-direction: column;
+      padding: 2px 10px;
+      border-right: 1px solid rgba(255, 160, 90, 0.16);
+    }
+
+    .stat-pill:last-of-type {
+      border-right: none;
+    }
+
+    .stat-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: var(--text-muted);
+    }
+
+    .stat-value {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent-gold);
+      font-variant-numeric: tabular-nums;
+      margin-top: 1px;
+    }
+
+    .stat-value.hot {
+      color: var(--accent-core);
+      text-shadow: 0 0 8px rgba(255, 130, 0, 0.55);
+    }
+
+    .top-actions {
+      pointer-events: auto;
+      display: flex;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      background: var(--panel-bg);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--border-ember);
+      color: var(--text-primary);
+      padding: 9px 13px;
+      border-radius: 9px;
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: var(--shadow-heavy);
+    }
+
+    .icon-btn:hover {
+      border-color: var(--accent-gold);
+      background: rgba(45, 25, 20, 0.92);
+      transform: translateY(-1px);
+    }
+
+    .icon-btn.active {
+      background: linear-gradient(135deg, rgba(255, 94, 26, 0.34), rgba(180, 35, 10, 0.45));
+      border-color: var(--accent-gold);
+      color: #fff8eb;
+      box-shadow: 0 0 18px rgba(255, 106, 20, 0.35);
+    }
+
+    /* Left Dock: Camera Tour & Architectural Detail Hotspots */
+    .side-dock {
+      position: fixed;
+      top: 78px;
+      bottom: 66px;
+      width: 300px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+      transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease;
+    }
+
+    .side-dock.left {
+      left: 16px;
+    }
+
+    .side-dock.right {
+      right: 16px;
+      width: 312px;
+    }
+
+    body.zen-mode .side-dock.left {
+      transform: translateX(-330px);
+      opacity: 0;
+    }
+
+    body.zen-mode .side-dock.right {
+      transform: translateX(340px);
+      opacity: 0;
+    }
+
+    .glass-panel {
+      pointer-events: auto;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-ember);
+      border-radius: 11px;
+      padding: 12px 13px;
+      box-shadow: var(--shadow-heavy);
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 120, 50, 0.35) transparent;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 9px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255, 150, 80, 0.16);
+    }
+
+    .panel-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: var(--accent-gold);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .panel-badge {
+      font-size: 9.5px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255, 100, 30, 0.2);
+      border: 1px solid rgba(255, 140, 60, 0.35);
+      color: #ffd3a8;
+    }
+
+    /* Camera Preset Tour Grid */
+    .preset-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+
+    .preset-btn {
+      width: 100%;
+      text-align: left;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(34, 24, 29, 0.72);
+      border: 1px solid rgba(255, 145, 75, 0.18);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.16s ease;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .preset-btn:hover {
+      background: rgba(62, 34, 28, 0.85);
+      border-color: rgba(255, 180, 90, 0.55);
+      transform: translateX(2px);
+    }
+
+    .preset-btn.active {
+      background: linear-gradient(90deg, rgba(255, 92, 24, 0.36) 0%, rgba(90, 26, 18, 0.75) 100%);
+      border-color: var(--accent-gold);
+      box-shadow: inset 3px 0 0 var(--accent-core), 0 0 14px rgba(255, 94, 26, 0.24);
+    }
+
+    .preset-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .preset-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff3e6;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .preset-desc {
+      font-size: 10px;
+      color: var(--text-secondary);
+      line-height: 1.25;
+    }
+
+    .preset-zoom-tag {
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(0, 0, 0, 0.45);
+      color: var(--accent-gold);
+      border: 1px solid rgba(255, 190, 68, 0.28);
+      white-space: nowrap;
+    }
+
+    /* Sliders & Controls */
+    .control-group {
+      margin-bottom: 10px;
+    }
+
+    .control-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .control-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .control-val {
+      font-weight: 700;
+      color: var(--accent-gold);
+      font-variant-numeric: tabular-nums;
+      font-size: 11px;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 5px;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #3a2428, #8c3b1e, #ff9233);
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #fff3d1;
+      border: 2px solid var(--accent-magma);
+      box-shadow: 0 0 8px rgba(255, 110, 20, 0.85);
+      cursor: pointer;
+    }
+
+    /* Button Matrix */
+    .btn-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .btn-row.three {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .mini-btn {
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 145, 75, 0.24);
+      background: rgba(34, 23, 28, 0.8);
+      color: var(--text-secondary);
+      font-size: 10.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+
+    .mini-btn:hover {
+      border-color: var(--accent-gold);
+      color: #fff;
+      background: rgba(65, 34, 28, 0.88);
+    }
+
+    .mini-btn.active {
+      background: linear-gradient(135deg, rgba(255, 98, 24, 0.42), rgba(168, 34, 12, 0.55));
+      border-color: var(--accent-gold);
+      color: #fff9ed;
+      box-shadow: 0 0 10px rgba(255, 100, 20, 0.3);
+    }
+
+    /* Live Voxel Raycast Inspector Card */
+    .inspector-box {
+      background: rgba(12, 9, 12, 0.72);
+      border: 1px solid rgba(255, 155, 75, 0.24);
+      border-radius: 8px;
+      padding: 9px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .inspector-top {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .swatch-cube {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      box-shadow: inset 0 0 8px rgba(0,0,0,0.4), 0 0 12px rgba(255, 110, 30, 0.35);
+      flex-shrink: 0;
+    }
+
+    .inspector-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff5e8;
+    }
+
+    .inspector-sub {
+      font-size: 10px;
+      color: var(--text-secondary);
+    }
+
+    .inspector-meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+      border-top: 1px solid rgba(255, 145, 75, 0.14);
+      padding-top: 6px;
+    }
+
+    .meta-cell {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .meta-cell span:first-child {
+      font-size: 8.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+    }
+
+    .meta-cell span:last-child {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--accent-gold);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Reference Picture-in-Picture Card */
+    .ref-card {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .ref-thumb-wrap {
+      width: 72px;
+      height: 126px;
+      border-radius: 7px;
+      overflow: hidden;
+      border: 1px solid var(--border-gold);
+      flex-shrink: 0;
+      position: relative;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+    }
+
+    .ref-thumb-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .ref-details {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 10.5px;
+      color: var(--text-secondary);
+      line-height: 1.35;
+    }
+
+    /* Modal for expanded Reference Comparison */
+    #ref-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(6, 4, 7, 0.82);
+      backdrop-filter: blur(10px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    #ref-modal.open {
+      display: flex;
+    }
+
+    .ref-modal-card {
+      background: var(--panel-bg-strong);
+      border: 1px solid var(--border-gold);
+      border-radius: 14px;
+      padding: 16px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: var(--shadow-heavy);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .ref-modal-card img {
+      width: 100%;
+      max-height: 70vh;
+      object-fit: contain;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 170, 90, 0.35);
+    }
+
+    /* Bottom Dock Bar: Quick Zoom & Controls Hint */
+    .bottom-bar {
+      position: fixed;
+      bottom: 14px;
+      left: 16px;
+      right: 16px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      pointer-events: none;
+      gap: 12px;
+    }
+
+    .quick-dock {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 12px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-ember);
+      border-radius: 10px;
+      box-shadow: var(--shadow-heavy);
+    }
+
+    .hint-pill {
+      font-size: 11px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .key-tag {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255, 160, 80, 0.15);
+      border: 1px solid rgba(255, 160, 80, 0.35);
+      color: var(--accent-gold);
+      font-size: 10px;
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    /* Loading Overlay */
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: radial-gradient(circle at 50% 45%, #261419 0%, #0b070a 75%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      transition: opacity 0.45s ease;
+    }
+
+    #loading-screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loader-ring {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 3px solid rgba(255, 120, 40, 0.2);
+      border-top-color: var(--accent-core);
+      border-right-color: var(--accent-magma);
+      animation: spin 0.9s linear infinite;
+      box-shadow: 0 0 24px rgba(255, 94, 26, 0.45);
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 1024px) {
+      .side-dock.left, .side-dock.right {
+        width: 250px;
+      }
+      .telemetry-bar {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div id="loading-screen">
+    <div class="loader-ring"></div>
+    <div style="text-align:center;">
+      <h2 style="font-family: Georgia, serif; letter-spacing: 0.08em; color: #ffdca8; font-size: 18px; text-transform: uppercase;">Forging Voxel Caldera Citadel</h2>
+      <p id="loading-status" style="font-size: 12px; color: #c9a690; margin-top: 6px;">Sculpting 160,000+ individual 3D mini-blocks &amp; magma shaders...</p>
+    </div>
+  </div>
+
+  <!-- 3D WebGL2 Voxel Canvas -->
+  <div id="viewport-container">
+    <canvas id="voxel-canvas"></canvas>
+  </div>
+  <div class="vignette-overlay"></div>
+
+  <!-- Top Header & Live Telemetry -->
+  <header class="top-bar">
+    <div class="brand-card">
+      <div class="brand-emblem"></div>
+      <div class="brand-titles">
+        <h1>Aethelgard: Caldera Bastion</h1>
+        <p>Ultra-Dense 3D Voxel Art Observatory • Reference Architecture Reconstruction</p>
+      </div>
+    </div>
+
+    <div class="telemetry-bar">
+      <div class="stat-pill">
+        <span class="stat-label">Visible Mini-Blocks</span>
+        <span class="stat-value hot" id="stat-voxels">0</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">Magma Voxels</span>
+        <span class="stat-value" id="stat-magma">0</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">Voxel Grid</span>
+        <span class="stat-value">144×310×144</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">Zoom Level</span>
+        <span class="stat-value" id="stat-zoom">1.00×</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">Frame Rate</span>
+        <span class="stat-value" id="stat-fps">60 FPS</span>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <button class="icon-btn" id="btn-auto-orbit" title="Toggle gentle turntable rotation">
+        <span>⟳</span> Auto-Orbit
+      </button>
+      <button class="icon-btn" id="btn-explode-quick" title="Separate individual mini-blocks to inspect discrete voxel construction">
+        <span>❖</span> Explode Mini-Blocks
+      </button>
+      <button class="icon-btn" id="btn-zen-mode" title="Hide side panels for full-screen inspection">
+        <span>⛶</span> Full View
+      </button>
+    </div>
+  </header>
+
+  <!-- Left Dock: One-Click Camera Tour & Extreme Detail Hotspots -->
+  <aside class="side-dock left">
+    <div class="glass-panel" style="flex: 1;">
+      <div class="panel-header">
+        <span class="panel-title"><span>⌖</span> Extreme Detail Camera Tour</span>
+        <span class="panel-badge">9 Hotspots</span>
+      </div>
+      <div class="preset-grid" id="camera-presets">
+        <button class="preset-btn active" data-preset="poster">
+          <div class="preset-info">
+            <span class="preset-name">1. Reference Poster View</span>
+            <span class="preset-desc">Exact isometric framing matching the original artwork</span>
+          </div>
+          <span class="preset-zoom-tag">1.0×</span>
+        </button>
+
+        <button class="preset-btn" data-preset="spire">
+          <div class="preset-info">
+            <span class="preset-name">2. Grand Cathedral Spire</span>
+            <span class="preset-desc">Soaring gothic bell-tower, crockets, pinnacles &amp; lancets</span>
+          </div>
+          <span class="preset-zoom-tag">3.1×</span>
+        </button>
+
+        <button class="preset-btn" data-preset="caldera">
+          <div class="preset-info">
+            <span class="preset-name">3. Molten Caldera Moat</span>
+            <span class="preset-desc">Churning lava lake, crust islands &amp; glowing keep walls</span>
+          </div>
+          <span class="preset-zoom-tag">2.8×</span>
+        </button>
+
+        <button class="preset-btn" data-preset="bastion">
+          <div class="preset-info">
+            <span class="preset-name">4. Curtain Wall &amp; Bastion Stairs</span>
+            <span class="preset-desc">Recessed wall arches, front-left tower &amp; mossy steps</span>
+          </div>
+          <span class="preset-zoom-tag">3.2×</span>
+        </button>
+
+        <button class="preset-btn" data-preset="colonnade">
+          <div class="preset-info">
+            <span class="preset-name">5. East Palace &amp; Flying Buttresses</span>
+            <span class="preset-desc">Arched colonnades, grand staircase &amp; slender turret</span>
+          </div>
+          <span class="preset-zoom-tag">3.0×</span>
+        </button>
+
+        <button class="preset-btn" data-preset="fissure">
+          <div class="preset-info">
+            <span class="preset-name">6. Great Magma Fissure Canyon</span>
+            <span class="preset-desc">Torn basalt cliff gorge spilling rivers of molten gold</span>
+          </div>
+          <span class="preset-zoom-tag">2.6×</span>
+        </button>
+
+        <button class="preset-btn" data-preset="falls">
+          <div class="preset-info">
+            <span class="preset-name">7. Abyssal Lava Waterfall Tip</span>
+            <span class="preset-desc">Bottom obsidian spire tip &amp; free-falling magma plumes</span>
+          </div>
+          <span class="preset-zoom-tag">2.5×</span>
+        </button>
+
+        <button class="preset-btn" data-preset="crystal">
+          <div class="preset-info">
+            <span class="preset-name">8. Arcane Crimson Octahedron</span>
+            <span class="preset-desc">Levitating red diamond &amp; swirling ember shard cluster</span>
+          </div>
+          <span class="preset-zoom-tag">4.2×</span>
+        </button>
+
+        <button class="preset-btn" data-preset="macro">
+          <div class="preset-info">
+            <span class="preset-name">9. Ultra-Macro Mini-Block View</span>
+            <span class="preset-desc">Extreme 6.5× zoom showing individual beveled 1×1×1 blocks</span>
+          </div>
+          <span class="preset-zoom-tag">6.5×</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Reference Comparison Card -->
+    <div class="glass-panel">
+      <div class="panel-header">
+        <span class="panel-title"><span>◈</span> Reference Artwork Match</span>
+        <button class="mini-btn" id="btn-expand-ref" style="padding: 2px 7px; font-size: 9.5px;">Enlarge</button>
+      </div>
+      <div class="ref-card">
+        <div class="ref-thumb-wrap" id="ref-thumb-trigger" title="Click to enlarge reference artwork">
+          <img src="data:image/jpeg;base64,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" alt="Reference Volcanic Island Citadel" />
+        </div>
+        <div class="ref-details">
+          <div>Every landmark from your image is sculpted in 3D voxels:</div>
+          <div style="color: #ffd399;">• Gothic Spire &amp; Twin Towers<br>• Glowing Caldera &amp; Curtain Wall<br>• Mossy Rim &amp; Basalt Spire<br>• Fissure &amp; Abyssal Lava Falls<br>• Floating Red Octahedron</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Right Dock: Mini-Block Detail Controls, Cross-Section Slicer & Live Voxel Inspector -->
+  <aside class="side-dock right">
+    <!-- Live Raycast Voxel Inspector -->
+    <div class="glass-panel">
+      <div class="panel-header">
+        <span class="panel-title"><span>▣</span> Live Mini-Block Inspector</span>
+        <span class="panel-badge" id="inspector-coords">Hover Model</span>
+      </div>
+      <div class="inspector-box">
+        <div class="inspector-top">
+          <div class="swatch-cube" id="inspector-swatch" style="background: #d49b72;"></div>
+          <div>
+            <div class="inspector-title" id="inspector-mat-name">Carved Gothic Sandstone</div>
+            <div class="inspector-sub" id="inspector-zone-name">Citadel Upper Keep &amp; Buttresses</div>
+          </div>
+        </div>
+        <div class="inspector-meta">
+          <div class="meta-cell">
+            <span>Grid [X,Y,Z]</span>
+            <span id="inspector-xyz">[+6, +84, -12]</span>
+          </div>
+          <div class="meta-cell">
+            <span>Block Temp</span>
+            <span id="inspector-temp">68 °C</span>
+          </div>
+          <div class="meta-cell">
+            <span>Voxel AO</span>
+            <span id="inspector-ao">0.88</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Micro-Block Geometry & Grid Controls -->
+    <div class="glass-panel" style="flex: 1;">
+      <div class="panel-header">
+        <span class="panel-title"><span>⊞</span> Individual Mini-Block Detail</span>
+        <span class="panel-badge">Shader Controls</span>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label-row">
+          <span>Mini-Block Scale (Gap / Separation)</span>
+          <span class="control-val" id="val-block-scale">100%</span>
+        </div>
+        <input type="range" id="slider-block-scale" min="65" max="100" value="100" />
+        <div class="btn-row three">
+          <button class="mini-btn active" data-scale="100">Solid (100%)</button>
+          <button class="mini-btn" data-scale="86">Crisp Gap (86%)</button>
+          <button class="mini-btn" data-scale="72">Exploded (72%)</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label-row">
+          <span>Micro-Block Bevel &amp; Seam Outline</span>
+          <span class="control-val" id="val-bevel">0.55</span>
+        </div>
+        <input type="range" id="slider-bevel" min="0" max="100" value="55" />
+      </div>
+
+      <div class="control-group">
+        <div class="control-label-row">
+          <span>Magma Core Radiance &amp; Flow Speed</span>
+          <span class="control-val" id="val-magma">1.25×</span>
+        </div>
+        <input type="range" id="slider-magma" min="30" max="220" value="125" />
+      </div>
+
+      <!-- Cross-Section Cutaway Slicers -->
+      <div class="panel-header" style="margin-top: 12px;">
+        <span class="panel-title"><span>✂</span> Interior Cross-Section Slicer</span>
+        <button class="mini-btn" id="btn-reset-slice" style="padding: 2px 7px; font-size: 9.5px;">Reset Cut</button>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label-row">
+          <span>X-Axis Cutaway (Reveals Magma Conduit)</span>
+          <span class="control-val" id="val-slice-x">Full (+72)</span>
+        </div>
+        <input type="range" id="slider-slice-x" min="-45" max="72" value="72" />
+      </div>
+
+      <div class="control-group">
+        <div class="control-label-row">
+          <span>Y-Axis Elevation Slice (Plan Cutaway)</span>
+          <span class="control-val" id="val-slice-y">Full (+144)</span>
+        </div>
+        <input type="range" id="slider-slice-y" min="-120" max="144" value="144" />
+      </div>
+
+      <div class="btn-row">
+        <button class="mini-btn" id="btn-cut-conduit">Volcanic Heart Cut</button>
+        <button class="mini-btn" id="btn-cut-caldera">Caldera Floor Plan</button>
+      </div>
+
+      <!-- Structural Subsystem Isolation -->
+      <div class="panel-header" style="margin-top: 12px;">
+        <span class="panel-title"><span>layers</span> Structural Layer Filter</span>
+      </div>
+      <div class="btn-row">
+        <button class="mini-btn active" data-zone="0">All Voxel Layers</button>
+        <button class="mini-btn" data-zone="4">Gothic Citadel Only</button>
+        <button class="mini-btn" data-zone="2">Magma &amp; Falls Only</button>
+        <button class="mini-btn" data-zone="3">Walls &amp; Bastions</button>
+        <button class="mini-btn" data-zone="1">Basalt Spire Rock</button>
+        <button class="mini-btn" data-zone="5">Moss &amp; Arcane</button>
+      </div>
+
+      <!-- Atmospheric Lighting Theme -->
+      <div class="panel-header" style="margin-top: 12px;">
+        <span class="panel-title"><span>☀</span> Atmospheric Lighting Mode</span>
+      </div>
+      <div class="btn-row">
+        <button class="mini-btn active" data-theme="0">Golden Dusk (Ref)</button>
+        <button class="mini-btn" data-theme="1">Magma Eclipse</button>
+        <button class="mini-btn" data-theme="2">Clear Inspection</button>
+        <button class="mini-btn" data-theme="3">Thermal X-Ray</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Bottom Navigation & Zoom Bar -->
+  <footer class="bottom-bar">
+    <div class="quick-dock">
+      <div class="hint-pill">
+        <span><span class="key-tag">Left Drag</span>Rotate 360°</span>
+        <span><span class="key-tag">Right / Shift Drag</span>Pan Target</span>
+        <span><span class="key-tag">Scroll / Pinch</span>Macro Zoom</span>
+        <span><span class="key-tag">Click Block</span>Lock Focus</span>
+      </div>
+    </div>
+
+    <div class="quick-dock">
+      <span style="font-size: 11px; color: var(--text-secondary); margin-right: 4px;">Quick Zoom:</span>
+      <button class="mini-btn" id="btn-zoom-in" style="padding: 5px 10px;">＋ Zoom In</button>
+      <button class="mini-btn" id="btn-zoom-out" style="padding: 5px 10px;">－ Zoom Out</button>
+      <button class="mini-btn" id="btn-reset-cam" style="padding: 5px 10px;">⌂ Reset View</button>
+    </div>
+  </footer>
+
+  <!-- Reference Image Lightbox Modal -->
+  <div id="ref-modal">
+    <div class="ref-modal-card">
+      <div class="panel-header" style="margin-bottom: 4px;">
+        <span class="panel-title">Original Reference Artwork</span>
+        <button class="mini-btn" id="btn-close-ref">✕ Close</button>
+      </div>
+      <img src="data:image/jpeg;base64,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" alt="Reference Volcanic Island" />
+      <p style="font-size: 11px; color: var(--text-secondary); text-align: center;">
+        Use the camera presets on the left or drag in 3D to inspect how every spire, buttress, bastion, and lava stream translates into 3D mini-blocks.
+      </p>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    // =========================================================================
+    // 1. DETERMINISTIC FAST NOISE & MATH UTILITIES
+    // =========================================================================
+    const fract = (x) => x - Math.floor(x);
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const clamp = (x, lo, hi) => (x < lo ? lo : x > hi ? hi : x);
+    const smoothstep = (e0, e1, x) => {
+      const t = clamp((x - e0) / (e1 - e0), 0.0, 1.0);
+      return t * t * (3.0 - 2.0 * t);
+    };
+
+    function hash3(x, y, z) {
+      let n = (x * 374761393 + y * 668265263 + z * 2147483647) | 0;
+      n = (n ^ (n >> 13)) * 1274126177;
+      return ((n ^ (n >> 16)) >>> 0) / 4294967295.0;
+    }
+
+    function noise3D(x, y, z) {
+      const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+      const xf = x - xi, yf = y - yi, zf = z - zi;
+      const u = xf * xf * (3.0 - 2.0 * xf);
+      const v = yf * yf * (3.0 - 2.0 * yf);
+      const w = zf * zf * (3.0 - 2.0 * zf);
+
+      const n000 = hash3(xi, yi, zi);
+      const n100 = hash3(xi + 1, yi, zi);
+      const n010 = hash3(xi, yi + 1, zi);
+      const n110 = hash3(xi + 1, yi + 1, zi);
+      const n001 = hash3(xi, yi, zi + 1);
+      const n101 = hash3(xi + 1, yi, zi + 1);
+      const n011 = hash3(xi, yi + 1, zi + 1);
+      const n111 = hash3(xi + 1, yi + 1, zi + 1);
+
+      const x00 = n000 + (n100 - n000) * u;
+      const x10 = n010 + (n110 - n010) * u;
+      const x01 = n001 + (n101 - n001) * u;
+      const x11 = n011 + (n111 - n011) * u;
+
+      const y0 = x00 + (x10 - x00) * v;
+      const y1 = x01 + (x11 - x01) * v;
+      return y0 + (y1 - y0) * w;
+    }
+
+    function fbm3(x, y, z) {
+      return 0.55 * noise3D(x, y, z) +
+             0.30 * noise3D(x * 2.03, y * 2.03, z * 2.03) +
+             0.15 * noise3D(x * 4.07, y * 4.07, z * 4.07);
+    }
+
+    // =========================================================================
+    // 2. MATERIAL DEFINITIONS & METADATA FOR INSPECTOR
+    // =========================================================================
+    const MATERIALS = {
+      1:  { name: "Deep Basalt Bedrock",      hex: "#261f24", temp: "42 °C" },
+      2:  { name: "Craggy Volcanic Slate",    hex: "#42343a", temp: "48 °C" },
+      3:  { name: "Thermal Weathered Cliff",  hex: "#6b4f47", temp: "74 °C" },
+      4:  { name: "Charred Obsidian Scoria",  hex: "#1c1316", temp: "185 °C" },
+      5:  { name: "Cliffside Olive Moss",     hex: "#52702f", temp: "29 °C" },
+      6:  { name: "Sunlit Highland Turf",     hex: "#84a648", temp: "27 °C" },
+      7:  { name: "Fortress Ashlar Masonry",  hex: "#966d54", temp: "54 °C" },
+      8:  { name: "Sun-Baked Ochre Freestone",hex: "#c49673", temp: "58 °C" },
+      9:  { name: "Recessed Mortar & Tracery",hex: "#684a3b", temp: "49 °C" },
+      10: { name: "Gothic Spire Dark Slate",  hex: "#4c3836", temp: "44 °C" },
+      11: { name: "Cooling Crimson Magma",    hex: "#ba2210", temp: "790 °C" },
+      12: { name: "Molten Pyroclast Flow",    hex: "#ff5900", temp: "1,020 °C" },
+      13: { name: "Incandescent Gold Magma",  hex: "#ffb700", temp: "1,180 °C" },
+      14: { name: "White-Hot Magma Core",     hex: "#fff478", temp: "1,340 °C" },
+      15: { name: "Arcane Crimson Octahedron",hex: "#ff3314", temp: "640 °C" },
+      16: { name: "Cathedral Amber Lantern",  hex: "#ffa726", temp: "95 °C" }
+    };
+
+    const ZONES = {
+      1: "Inverted Basalt Volcanic Cone",
+      2: "Caldera Lake & Abyssal Lava Falls",
+      3: "Outer Curtain Wall & Bastions",
+      4: "Gothic Cathedral-Citadel Complex",
+      5: "Outer Terraced Moss & Flora",
+      6: "Arcane Red Crystal & Sky Embers"
+    };
+
+    // =========================================================================
+    // 3. HIGH-DENSITY 3D VOXEL WORLD GENERATOR (144 x 310 x 144)
+    // =========================================================================
+    const GX = 144, GY = 310, GZ = 144;
+    const OX = 72,  OY = 165, OZ = 72; // Offsets so x in [-72..71], y in [-165..144], z in [-72..71]
+
+    const grid = new Uint8Array(GX * GY * GZ);
+    const zoneGrid = new Uint8Array(GX * GY * GZ);
+
+    function idx(x, y, z) {
+      return ((y + OY) * GX + (x + OX)) * GZ + (z + OZ);
+    }
+
+    function inBounds(x, y, z) {
+      return (x >= -OX && x < GX - OX && y >= -OY && y < GY - OY && z >= -OZ && z < GZ - OZ);
+    }
+
+    function setVoxel(x, y, z, mat, zone) {
+      if (x < -OX || x >= GX - OX || y < -OY || y >= GY - OY || z < -OZ || z >= GZ - OZ) return;
+      const i = ((y + OY) * GX + (x + OX)) * GZ + (z + OZ);
+      grid[i] = mat;
+      zoneGrid[i] = zone;
+    }
+
+    function getVoxel(x, y, z) {
+      if (x < -OX || x >= GX - OX || y < -OY || y >= GY - OY || z < -OZ || z >= GZ - OZ) return 0;
+      return grid[((y + OY) * GX + (x + OX)) * GZ + (z + OZ)];
+    }
+
+    // Helper for magma fissure centerline path on the front-right flank
+    function getFissureCenter(y) {
+      const t = clamp((36.0 - y) / 150.0, 0.0, 1.0);
+      let profileScale;
+      if (t < 0.08) profileScale = 1.01 - t * 0.65;
+      else if (t < 0.42) profileScale = 0.96 - (t - 0.08) * 1.08;
+      else if (t < 0.78) profileScale = 0.59 - (t - 0.42) * 0.92;
+      else profileScale = Math.max(0.05, 0.26 - (t - 0.78) * 1.05);
+
+      // Angular path down the front-right flank (matching reference lava river)
+      const angle = lerp(0.98, 1.28, Math.pow(t, 0.75)) + Math.sin(y * 0.065) * 0.11;
+      const radScale = (t < 0.25) ? 0.96 : (t < 0.65 ? 0.92 : 0.88);
+      const cx = Math.cos(angle) * 56.0 * profileScale * radScale + Math.sin(y * 0.08) * 1.8;
+      const cz = Math.sin(angle) * 52.0 * profileScale * radScale;
+      return [cx, cz];
+    }
+
+    function generateVoxelWorld() {
+      // -----------------------------------------------------------------------
+      // PASS 1: THE INVERTED VOLCANIC BASALT CONE & SUBTERRANEAN MAGMA HEART
+      // -----------------------------------------------------------------------
+      for (let y = -114; y <= 41; y++) {
+        // Normalized depth from top rim (t=0 at y=41, t=1 at y=-114)
+        const t = (41.0 - y) / 155.0;
+
+        // Profile curve matching reference image's craggy tapered cone
+        let profileScale;
+        if (t < 0.08) {
+          profileScale = 1.01 - t * 0.65;
+        } else if (t < 0.42) {
+          profileScale = 0.96 - (t - 0.08) * 1.08;
+        } else if (t < 0.78) {
+          profileScale = 0.59 - (t - 0.42) * 0.92;
+        } else {
+          profileScale = Math.max(0.03, 0.26 - (t - 0.78) * 1.08);
+        }
+
+        const baseRx = 58.0 * profileScale;
+        const baseRz = 54.0 * profileScale;
+        const boundX = Math.min(68, Math.ceil(baseRx + 14));
+        const boundZ = Math.min(68, Math.ceil(baseRz + 14));
+
+        // Center drift of cone for natural asymmetry matching reference
+        const coneShiftX = Math.sin(y * 0.035) * 2.2 - t * 2.0;
+        const coneShiftZ = Math.cos(y * 0.03) * 1.8 + t * 4.5;
+
+        const [fissX, fissZ] = getFissureCenter(y);
+
+        for (let x = -boundX; x <= boundX; x++) {
+          for (let z = -boundZ; z <= boundZ; z++) {
+            const dx = (x - coneShiftX) / Math.max(2.5, baseRx);
+            const dz = (z - coneShiftZ) / Math.max(2.5, baseRz);
+            const rNorm = Math.sqrt(dx * dx + dz * dz);
+            if (rNorm > 1.32) continue;
+
+            const angle = Math.atan2(dz, dx);
+            // Angular faceted crags & vertical basalt columns
+            const facet1 = Math.sin(angle * 7.0 + y * 0.025) * 0.085;
+            const facet2 = Math.abs(Math.cos(angle * 4.5 - y * 0.04)) * 0.095;
+            const strata = Math.sin(y * 0.34 + noise3D(x * 0.08, y * 0.05, z * 0.08) * 2.5) * 0.045;
+            const cragNoise = (fbm3(x * 0.055, y * 0.045, z * 0.055) - 0.5) * 0.32;
+
+            // Prominent overhang ledges at y ≈ 12, y ≈ -18, y ≈ -48
+            const ledgeBoost =
+              0.06 * Math.exp(-Math.pow((y - 14) / 7.0, 2)) +
+              0.07 * Math.exp(-Math.pow((y + 18) / 8.0, 2)) +
+              0.06 * Math.exp(-Math.pow((y + 52) / 7.0, 2));
+
+            // Dampen crag noise near the top rim (t < 0.12) so the plateau meets the curtain wall & mossy rim cleanly
+            const rimDamp = smoothstep(0.0, 0.14, t);
+            const maxR = 0.94 + (facet1 + facet2 + strata + cragNoise + ledgeBoost) * rimDamp;
+
+            if (rNorm <= maxR) {
+              // Check subterranean magma chamber & central volcanic conduit
+              const chamberDist = Math.sqrt(Math.pow(x - 2, 2) + Math.pow(z - 4, 2));
+              const chamberRad = 6.5 + Math.sin(y * 0.11) * 3.2 + (y > 0 ? (y / 41.0) * 14.0 : 0.0);
+
+              if (y > -82 && y < 39 && chamberDist < chamberRad) {
+                if (chamberDist < chamberRad * 0.48) {
+                  setVoxel(x, y, z, 14, 2);
+                } else if (chamberDist < chamberRad * 0.78) {
+                  setVoxel(x, y, z, 13, 2);
+                } else {
+                  setVoxel(x, y, z, 12, 2);
+                }
+                continue;
+              }
+
+              // Check Great Magma Fissure along the front-right exterior cliff face (z > 0)
+              // Angular centerline winds from angle=0.92 (front-right rim) down to angle=1.35 (bottom tip)
+              const targetAngle = lerp(0.92, 1.32, Math.pow(t, 0.72)) + Math.sin(y * 0.07) * 0.08;
+              const angDiff = Math.abs(angle - targetAngle);
+              const arcDist = angDiff * Math.max(8.0, baseRx * maxR);
+              const surfDepth = (maxR - rNorm) * Math.max(10.0, baseRx);
+
+              // Width starts as a 3.5-voxel crack under the mossy rim (y=35) and widens into a 13-voxel magma gorge
+              let fissHalfWidth = 1.9 + 4.8 * Math.pow(clamp((36.0 - y) / 130.0, 0.0, 1.0), 0.62);
+              if (y < -10 && y > -78) fissHalfWidth += 2.2 * Math.sin(((-10 - y) / 68.0) * Math.PI);
+
+              if (y <= 35 && z > 0 && arcDist <= fissHalfWidth && surfDepth <= 6.5) {
+                // Carve shallow 1-voxel canyon lip so the magma sits inside a rocky gorge but is 100% visible
+                if (surfDepth < 0.85 && arcDist < fissHalfWidth * 0.70) {
+                  continue;
+                }
+                // Dark crag island splitting the lower cascade (-92 < y < -56)
+                const isSplitRock = (y < -56 && y > -90 && arcDist < 1.8 && Math.sin(y * 0.22 + x * 0.15) > 0.15);
+                if (isSplitRock) {
+                  setVoxel(x, y, z, 4, 1);
+                } else if (arcDist < fissHalfWidth * 0.35) {
+                  setVoxel(x, y, z, 14, 2); // Blinding white-yellow core
+                } else if (arcDist < fissHalfWidth * 0.62) {
+                  setVoxel(x, y, z, 13, 2); // Bright gold magma
+                } else if (arcDist < fissHalfWidth * 0.82) {
+                  setVoxel(x, y, z, 12, 2); // Fiery orange magma
+                } else if (arcDist < fissHalfWidth * 0.93) {
+                  setVoxel(x, y, z, 11, 2); // Crimson cooling edge
+                } else {
+                  setVoxel(x, y, z, 4, 1);  // Charred scoria canyon wall
+                }
+                continue;
+              }
+
+              // Secondary left-front glowing magma window (-84 < y < -64, x ≈ -8, z > 4)
+              const distLeftVent = Math.sqrt(Math.pow(x + 8.5, 2) + Math.pow((y + 73) * 0.55, 2));
+              if (z > 4 && distLeftVent < 4.5 && rNorm > maxR - 0.25) {
+                if (distLeftVent < 2.1) setVoxel(x, y, z, 14, 2);
+                else if (distLeftVent < 3.3) setVoxel(x, y, z, 13, 2);
+                else setVoxel(x, y, z, 12, 2);
+                continue;
+              }
+
+              // Assign rock material based on elevation, radial exposure, and noise
+              const nVal = noise3D(x * 0.14, y * 0.14, z * 0.14);
+              let rockMat = 1;
+              if (y > 24) {
+                rockMat = nVal > 0.42 ? 3 : 2;
+              } else if (y > -35) {
+                rockMat = (x > 4 && z > 4 && nVal > 0.38) ? 3 : (nVal > 0.46 ? 2 : 1);
+              } else {
+                rockMat = nVal > 0.62 ? 2 : 1;
+              }
+              setVoxel(x, y, z, rockMat, 1);
+            }
+          }
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // PASS 2: ABYSSAL LAVA WATERFALL PLUMES & CASCADING STREAMS (Y = -98..-162)
+      // -----------------------------------------------------------------------
+      const streams = [
+        { ox:  1.5, oz:  6.0, topY: -96,  botY: -162, rad: 3.4 }, // Main central blinding stream
+        { ox: -2.5, oz:  7.5, topY: -100, botY: -154, rad: 2.5 }, // Left fork stream
+        { ox:  5.5, oz:  8.2, topY: -92,  botY: -146, rad: 2.4 }, // Right fork stream
+        { ox:  8.8, oz: 11.0, topY: -78,  botY: -124, rad: 1.8 }, // Upper-right side curtain
+        { ox: -5.2, oz:  8.8, topY: -104, botY: -138, rad: 1.6 }  // Far-left drip stream
+      ];
+
+      for (const st of streams) {
+        for (let y = st.botY; y <= st.topY; y++) {
+          const prog = (st.topY - y) / (st.topY - st.botY); // 0 at top, 1 at bottom tip
+          const taper = (1.0 - Math.pow(prog, 1.35)) * st.rad;
+          const swayX = st.ox + Math.sin(y * 0.14 + st.ox) * 0.85;
+          const swayZ = st.oz + Math.cos(y * 0.12 + st.oz) * 0.65;
+          const rCeil = Math.ceil(taper + 1.5);
+
+          for (let dx = -rCeil; dx <= rCeil; dx++) {
+            for (let dz = -rCeil; dz <= rCeil; dz++) {
+              const x = Math.round(swayX + dx);
+              const z = Math.round(swayZ + dz);
+              const d = Math.sqrt(dx * dx + dz * dz) + (hash3(x, y, z) - 0.5) * 0.65;
+              if (d <= taper) {
+                if (d < taper * 0.52 || prog > 0.65) {
+                  setVoxel(x, y, z, 14, 2); // Blinding white-yellow core
+                } else if (d < taper * 0.82) {
+                  setVoxel(x, y, z, 13, 2); // Bright gold magma
+                } else {
+                  setVoxel(x, y, z, 12, 2); // Fiery orange edge
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Falling molten droplets around the lower waterfall (-162.. -85)
+      for (let i = 0; i < 110; i++) {
+        const dy = -85 - Math.floor(hash3(i, 11, 23) * 76);
+        const dx = Math.round((hash3(i, 31, 47) - 0.42) * 22);
+        const dz = Math.round(3 + (hash3(i, 59, 71) - 0.35) * 16);
+        const mat = hash3(i, 83, 97) > 0.45 ? 14 : 13;
+        setVoxel(dx, dy, dz, mat, 2);
+        if (hash3(i, 19, 29) > 0.4) setVoxel(dx, dy + 1, dz, mat, 2);
+      }
+
+      // -----------------------------------------------------------------------
+      // PASS 3: TOP PLATEAU MOSSY RIM TERRACES & CALDERA MOLTEN LAVA LAKE
+      // -----------------------------------------------------------------------
+      for (let x = -64; x <= 64; x++) {
+        for (let z = -60; z <= 60; z++) {
+          const dx = x / 57.0;
+          const dz = z / 53.0;
+          const rNorm = Math.sqrt(dx * dx + dz * dz);
+          if (rNorm > 1.15) continue;
+
+          const angle = Math.atan2(dz, dx);
+          const rimNoise = (fbm3(x * 0.06, 40 * 0.06, z * 0.06) - 0.5) * 0.16;
+          const effR = rNorm + rimNoise;
+
+          // 3A. Outer Mossy Ledges & Cliff Flora (outside the curtain wall: effR in 0.86 .. 1.03)
+          if (effR >= 0.855 && effR <= 1.03) {
+            const stepDrop = Math.floor((effR - 0.855) * 38.0);
+            const topY = 41 - stepDrop + Math.round((noise3D(x * 0.12, 0, z * 0.12) - 0.5) * 2.5);
+            for (let y = topY - 4; y < topY; y++) {
+              setVoxel(x, y, z, 3, 1);
+            }
+            const mossChance = noise3D(x * 0.11 + 5, 12, z * 0.11 - 3);
+            if (mossChance > 0.22) {
+              const mossMat = (mossChance > 0.52 || (x > 10 && z > 0)) ? 6 : 5;
+              setVoxel(x, topY, z, mossMat, 5);
+              if (mossChance > 0.65) {
+                setVoxel(x, topY + 1, z, 6, 5);
+              }
+              if (effR > 0.94 && hash3(x, topY, z) > 0.62) {
+                const vineLen = 2 + Math.floor(hash3(x, z, 7) * 4);
+                for (let vy = 1; vy <= vineLen; vy++) {
+                  setVoxel(x, topY - vy, z, 5, 5);
+                }
+              }
+            } else {
+              setVoxel(x, topY, z, 3, 1);
+            }
+          }
+
+          // 3B. Expansive Inner Caldera Molten Lava Lake (effR < 0.825)
+          if (effR < 0.825) {
+            for (let y = 38; y <= 41; y++) {
+              setVoxel(x, y, z, 4, 1);
+            }
+            const flow = fbm3(x * 0.085 + 2.3, 1.5, z * 0.085 - 1.7);
+            const wallProx = 0.825 - effR;
+            const frontLagoonBoost = (z > 2 && x < 18) ? 0.16 : 0.06;
+            const heat = flow + frontLagoonBoost;
+
+            let lavaMat = 12;
+            if (wallProx < 0.028) {
+              lavaMat = 11;
+            } else if (heat > 0.60 && wallProx > 0.05) {
+              lavaMat = 14; // Blazing yellow-white magma core
+            } else if (heat > 0.42) {
+              lavaMat = 13; // Golden magma
+            } else if (heat < 0.20 && hash3(x, 42, z) > 0.45) {
+              lavaMat = 4;  // Cooled crust island
+            } else if (heat < 0.28) {
+              lavaMat = 11;
+            } else {
+              lavaMat = 12;
+            }
+            setVoxel(x, 42, z, lavaMat, 2);
+            setVoxel(x, 43, z, lavaMat, 2);
+          }
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // PASS 4: OUTER FORTIFIED CURTAIN WALL, BASTIONS & EXTERIOR STAIRCASES
+      // -----------------------------------------------------------------------
+      for (let x = -60; x <= 60; x++) {
+        for (let z = -56; z <= 56; z++) {
+          const dx = x / 57.0;
+          const dz = z / 53.0;
+          const rNorm = Math.sqrt(dx * dx + dz * dz);
+          const angle = Math.atan2(dz, dx);
+          const rimNoise = (fbm3(x * 0.06, 40 * 0.06, z * 0.06) - 0.5) * 0.08;
+          const effR = rNorm + rimNoise;
+
+          // Curtain Wall Ring near the outer plateau rim (effR between 0.815 and 0.875)
+          if (effR >= 0.815 && effR <= 0.875) {
+            const wallBaseY = 37;
+            const wallTopY = (z > 8) ? 46 : 49;
+
+            // Periodic vertical buttresses & recessed blind arches every ~12 degrees
+            const archPhase = fract((angle + Math.PI) / (Math.PI * 2.0) * 32.0);
+            const isButtress = (archPhase < 0.28 || archPhase > 0.72);
+            const isOuterFace = (effR > 0.850);
+            const isInnerFace = (effR < 0.830);
+
+            for (let y = wallBaseY; y <= wallTopY; y++) {
+              // Recessed blind arch on outer face
+              if (isOuterFace && !isButtress && y >= 41 && y <= 47) {
+                if (effR > 0.862) continue; // Carve recessed arch depth
+                setVoxel(x, y, z, 9, 3);    // Dark mortar shadow inside arch
+                continue;
+              }
+              const nStone = hash3(x, y, z);
+              let sMat = 7;
+              if (y === wallTopY || (isButtress && isOuterFace)) {
+                sMat = nStone > 0.35 ? 8 : 7;
+              } else if (y <= 41 && isInnerFace) {
+                sMat = 4; // Scorched base touching the lava moat
+              } else {
+                sMat = nStone > 0.68 ? 8 : (nStone < 0.22 ? 9 : 7);
+              }
+              setVoxel(x, y, z, sMat, 3);
+            }
+
+            // Crenellated Battlements (Merlons) along outer & inner edges of wall top
+            if (isOuterFace || isInnerFace) {
+              const merlonPhase = fract((angle + Math.PI) / (Math.PI * 2.0) * 48.0);
+              if (merlonPhase < 0.52) {
+                setVoxel(x, wallTopY + 1, z, 8, 3);
+                if (isOuterFace) setVoxel(x, wallTopY + 2, z, 8, 3);
+              }
+            }
+          }
+        }
+      }
+
+      // 4B. Front-Right Sloped Stone Glacis / Bastion Apron on the OUTER Curtain Wall (X = 12..26, Z = 38..48)
+      for (let x = 12; x <= 26; x++) {
+        for (let z = 38; z <= 48; z++) {
+          const progZ = (z - 38) / 10.0;
+          const topY = Math.round(47 - progZ * 9.0);
+          for (let y = 35; y <= topY; y++) {
+            const isBorder = (x === 12 || x === 13 || x === 25 || x === 26);
+            const mat = isBorder ? 8 : ((y === topY) ? ((x + z) % 2 === 0 ? 8 : 7) : 7);
+            setVoxel(x, y, z, mat, 3);
+          }
+          if (z >= 38 && z <= 40 && (x <= 14 || x >= 24)) {
+            for (let y = topY + 1; y <= 50; y++) {
+              setVoxel(x, y, z, 8, 3);
+            }
+          }
+        }
+      }
+
+      // 4C. Front-Left Projecting Circular Bastion on the OUTER Curtain Wall (X = -26, Z = 39)
+      const bastCX = -26, bastCZ = 39;
+      for (let x = bastCX - 6; x <= bastCX + 6; x++) {
+        for (let z = bastCZ - 6; z <= bastCZ + 6; z++) {
+          const d = Math.sqrt(Math.pow(x - bastCX, 2) + Math.pow(z - bastCZ, 2));
+          if (d <= 5.6) {
+            for (let y = 35; y <= 50; y++) {
+              const ang = Math.atan2(z - bastCZ, x - bastCX);
+              const isSlit = (y >= 43 && y <= 47 && d > 4.4 && Math.abs(Math.sin(ang * 4.0)) < 0.22);
+              setVoxel(x, y, z, isSlit ? 9 : ((d > 4.6 && y % 3 === 0) ? 8 : 7), 3);
+            }
+            if (d >= 4.4 && d <= 5.6 && ((x + z) % 2 === 0)) {
+              setVoxel(x, 51, z, 8, 3);
+            }
+          }
+        }
+      }
+
+      // Stepped Stone Staircase descending along the outer cliff ledge from the Front-Left Bastion
+      for (let step = 0; step <= 11; step++) {
+        const sx = -21 + step;
+        const sy = 45 - Math.floor(step * 0.65);
+        for (let z = 42; z <= 46; z++) {
+          for (let y = 35; y <= sy; y++) {
+            setVoxel(sx, y, z, (y === sy) ? 8 : 7, 3);
+          }
+          if (z === 46) {
+            setVoxel(sx, sy + 1, z, 8, 3);
+          }
+        }
+      }
+
+      // 4D. Low Inner Caldera Containment Wall on the front-right (leaves the main lava lake wide open!)
+      for (let t = 0; t <= 22; t++) {
+        const wx = Math.round(8 + t * 0.85);
+        const wz = Math.round(24 + (22 - t) * 0.55);
+        for (let y = 41; y <= 45; y++) {
+          setVoxel(wx, y, wz, y === 45 ? 8 : 7, 3);
+          setVoxel(wx + 1, y, wz, y === 45 ? 8 : 7, 3);
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // PASS 5: ARCHITECTURAL BUILDING BLOCK HELPERS FOR THE GOTHIC CITADEL
+      // -----------------------------------------------------------------------
+      function buildGothicBox(x0, x1, z0, z1, y0, y1, zoneId, hasWindows = true, hasBattlements = true) {
+        for (let x = x0; x <= x1; x++) {
+          for (let z = z0; z <= z1; z++) {
+            const onXFace = (x === x0 || x === x1);
+            const onZFace = (z === z0 || z === z1);
+            const isCorner = (Math.abs(x - x0) <= 1 || Math.abs(x - x1) <= 1) &&
+                             (Math.abs(z - z0) <= 1 || Math.abs(z - z1) <= 1);
+            const isSurfaceWall = (x <= x0 + 1 || x >= x1 - 1 || z <= z0 + 1 || z >= z1 - 1);
+
+            for (let y = y0; y <= y1; y++) {
+              if (!isSurfaceWall && y < y1 - 1 && y > y0 + 1) {
+                // Solid architectural core & vaulted halls so windows never leak sky through the building
+                const isVaultArch = ((x + z) % 4 === 0) || (y % 6 === 0);
+                setVoxel(x, y, z, isVaultArch ? 7 : 9, zoneId);
+                continue;
+              }
+
+              // Corner stepped buttresses
+              if (isCorner) {
+                setVoxel(x, y, z, (y % 4 === 0) ? 8 : 7, zoneId);
+                continue;
+              }
+
+              // Pointed Gothic Lancet Windows along facades
+              if (hasWindows && y >= y0 + 5 && y <= y1 - 5 && (onXFace || onZFace)) {
+                const coord = onZFace ? (x - x0) : (z - z0);
+                const span = onZFace ? (x1 - x0) : (z1 - z0);
+                if (coord >= 3 && coord <= span - 3) {
+                  const bay = coord % 5;
+                  if (bay === 2 || bay === 3) {
+                    const isArchTop = (y === y1 - 5 && bay === 3);
+                    if (!isArchTop) {
+                      // Carve outer window recess and place glowing interior lantern/shadow
+                      continue;
+                    }
+                  } else if (bay === 0) {
+                    // Projecting vertical mullion / pilaster
+                    setVoxel(x, y, z, 8, zoneId);
+                    continue;
+                  }
+                }
+              }
+
+              // Inner window layer (1 voxel behind facade) glows warmly or shows dark tracery
+              if (hasWindows && y >= y0 + 5 && y <= y1 - 6 && !onXFace && !onZFace && isSurfaceWall) {
+                const coord = (z === z0 + 1 || z === z1 - 1) ? (x - x0) : (z - z0);
+                const bay = coord % 5;
+                if (bay === 2 || bay === 3) {
+                  const glowChance = hash3(x, y, z);
+                  setVoxel(x, y, z, glowChance > 0.35 ? 16 : 9, zoneId);
+                  continue;
+                }
+              }
+
+              // Horizontal cornice bands
+              if (y === y1 || y === y0 + 3 || y === Math.floor((y0 + y1) * 0.55)) {
+                setVoxel(x, y, z, 8, zoneId);
+              } else {
+                const h = hash3(x, y, z);
+                setVoxel(x, y, z, h > 0.65 ? 8 : (h < 0.20 ? 9 : 7), zoneId);
+              }
+            }
+
+            // Battlements & Corner Pinnacles on top of keep
+            if (hasBattlements && (onXFace || onZFace)) {
+              if ((x + z) % 2 === 0) {
+                setVoxel(x, y1 + 1, z, 8, zoneId);
+                setVoxel(x, y1 + 2, z, 8, zoneId);
+              }
+              if (isCorner) {
+                for (let py = 1; py <= 5; py++) {
+                  setVoxel(x, y1 + py, z, py >= 4 ? 8 : 7, zoneId);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Helper for tapered Gothic Spire / Pyramid Roof with corner crockets
+      function buildGothicSpire(cx, cz, baseRadius, yStart, yEnd, roofMat = 10, trimMat = 8, zoneId = 4) {
+        const height = yEnd - yStart;
+        for (let y = yStart; y <= yEnd; y++) {
+          const t = (y - yStart) / height; // 0 at base, 1 at needle tip
+          const r = Math.max(0.4, baseRadius * Math.pow(1.0 - t, 0.86));
+          const rInt = Math.ceil(r + 1);
+          for (let dx = -rInt; dx <= rInt; dx++) {
+            for (let dz = -rInt; dz <= rInt; dz++) {
+              // Octagonal gothic spire metric
+              const ax = Math.abs(dx), az = Math.abs(dz);
+              const octDist = Math.max(ax, az, (ax + az) * 0.72);
+              if (octDist <= r) {
+                const isEdgeRib = (Math.abs(ax - az) <= 0.8 || ax === 0 || az === 0) && (octDist >= r - 0.9);
+                const isCrocket = isEdgeRib && (y % 4 === 0) && t < 0.85;
+                const mat = (t > 0.88 || isEdgeRib) ? trimMat : roofMat;
+                setVoxel(cx + dx, y, cz + dz, mat, zoneId);
+                if (isCrocket && octDist >= r - 0.6) {
+                  setVoxel(cx + dx + Math.sign(dx), y, cz + dz + Math.sign(dz), trimMat, zoneId);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // PASS 6: SCULPTING THE FULL GOTHIC CATHEDRAL-CITADEL COMPLEX
+      // -----------------------------------------------------------------------
+      // 6A. Far-Left Ruined Watchtowers & Western Ramparts (X = -46..-32, Z = -2..+18)
+      buildGothicBox(-46, -37,  4, 15, 40, 65, 3, true, true);
+      buildGothicBox(-39, -31, -6,  5, 40, 59, 3, true, true);
+
+      // 6B. Far-Right Bastion Keep & Eastern Gatehouse (X = 31..44, Z = -2..+16)
+      buildGothicBox(32, 43, 2, 14, 40, 61, 3, true, true);
+      buildGothicBox(24, 34, 8, 17, 40, 53, 3, true, true);
+
+      // 6C. Citadel Foundation Plinth & Lower Keep rising from the Caldera Lake
+      // Main Front-Center Keep (X = -11..+12, Z = -16..+1, Y = 42..73) — leaves the entire foreground & left basin as a blazing sea of molten lava!
+      buildGothicBox(-11, 12, -16, 1, 42, 73, 4, true, true);
+
+      // Stepped Buttress Piers plunging into the front lava lake along Z = +2..+3
+      for (let bx = -10; bx <= 10; bx += 4) {
+        for (let y = 42; y <= 69; y++) {
+          const depth = y < 54 ? 2 : 1;
+          for (let dz = 1; dz <= depth; dz++) {
+            setVoxel(bx, y, 1 + dz, (y % 5 === 0) ? 8 : 7, 4);
+            setVoxel(bx + 1, y, 1 + dz, (y % 5 === 0) ? 8 : 7, 4);
+          }
+        }
+        for (let py = 70; py <= 76; py++) {
+          setVoxel(bx, py, 2, 8, 4);
+        }
+      }
+
+      // 6D. Right-Wing Classical/Gothic Colonnade Palace & Grand Staircase (X = +11..+27, Z = -12..+8)
+      buildGothicBox(11, 27, -12, 8, 42, 70, 4, true, true);
+      buildGothicBox(13, 25, -10, 5, 70, 81, 4, true, true);
+      // Monumental Stepped Entrance Staircase descending on the front-right (X = 14..24, Z = 9..20)
+      for (let sz = 9; sz <= 20; sz++) {
+        const stepH = 54 - (sz - 9);
+        for (let sx = 14; sx <= 24; sx++) {
+          for (let y = 42; y <= stepH; y++) {
+            const isBalustrade = (sx === 14 || sx === 15 || sx === 23 || sx === 24);
+            setVoxel(sx, y, sz, isBalustrade ? 8 : 7, 4);
+          }
+          if (sx === 14 || sx === 24) {
+            setVoxel(sx, stepH + 1, sz, 8, 4);
+            setVoxel(sx, stepH + 2, sz, 8, 4);
+          }
+        }
+      }
+
+      // 6E. Left-Wing Twin-Spired Gothic Cathedral & Flying Buttresses (X = -24..-8, Z = -26..-4)
+      buildGothicBox(-24, -8, -26, -4, 42, 76, 4, true, true);
+      // Left-Front Gothic Bell Tower (X = -17..-9, Z = -5..+3, Y = 72..86 + Spire to 103)
+      buildGothicBox(-17, -9, -5, 3, 72, 86, 4, true, true);
+      buildGothicSpire(-13, -1, 4.5, 87, 104, 10, 8, 4);
+
+      // Left-Back Gothic Tower (X = -25..-17, Z = -18..-10, Y = 72..84 + Spire to 99)
+      buildGothicBox(-25, -17, -18, -10, 72, 84, 4, true, true);
+      buildGothicSpire(-21, -14, 4.2, 85, 99, 10, 8, 4);
+
+      // Secondary Left-Mid Pinnacle Turret (X = -7..-1, Z = -16..-10, Y = 70..94)
+      buildGothicBox(-7, -1, -16, -10, 68, 86, 4, true, true);
+      buildGothicSpire(-4, -13, 3.5, 87, 98, 10, 8, 4);
+
+      // 6F. Far-Right Slender Octagonal Watch-Turret (X = +25..+33, Z = -16..-8)
+      // Matches the distinct slender spire on the far right of the castle silhouette!
+      buildGothicBox(25, 32, -16, -9, 41, 79, 4, true, true);
+      buildGothicSpire(28, -12, 3.8, 80, 96, 10, 8, 4);
+
+      // 6G. Rear & Mid-Upper Cathedral Clerestory & Transepts (X = -10..+18, Z = -28..-5, Y = 41..85)
+      buildGothicBox(-10, 18, -26, -5, 41, 84, 4, true, true);
+      // Pitched Gothic Nave Roof along Z = -25..-6
+      for (let z = -25; z <= -6; z++) {
+        for (let r = 0; r <= 7; r++) {
+          setVoxel(-7 + r, 85 + r, z, 10, 4);
+          setVoxel( 7 - r, 85 + r, z, 10, 4);
+          if (r === 7) setVoxel(0, 92, z, 8, 4); // Roof ridge cresting
+        }
+      }
+
+      // 3D Flying Buttresses leaping from outer piers to the central cathedral clerestory!
+      const buttressZList = [-22, -16, -10, -4];
+      for (const bz of buttressZList) {
+        // Left & Right outer buttress piers
+        for (let y = 55; y <= 84; y++) {
+          setVoxel(-14, y, bz, 8, 4);
+          setVoxel(-14, y, bz + 1, 7, 4);
+          setVoxel( 20, y, bz, 8, 4);
+          setVoxel( 20, y, bz + 1, 7, 4);
+        }
+        // Flying arch flyers
+        for (let s = 0; s <= 6; s++) {
+          const fy = 72 + Math.round(s * 1.6 + Math.sin((s / 6.0) * Math.PI) * 2.0);
+          setVoxel(-14 + s, fy, bz, 8, 4);
+          setVoxel( 20 - s, fy, bz, 8, 4);
+        }
+      }
+
+      // 6H. THE SOARING GRAND CENTRAL CATHEDRAL SPIRE (X = 0..+16, Z = -22..-6, Y = 41..138)
+      // Lower & Mid Belfry Shaft (Y = 76..100)
+      buildGothicBox(0, 16, -22, -6, 76, 100, 4, true, true);
+
+      // Attached Western Bell-Turret & Bridge Arch (matching the stepped twin-peak base of the main spire!)
+      buildGothicBox(-4, 2, -18, -10, 80, 103, 4, true, true);
+      buildGothicSpire(-1, -14, 3.2, 104, 113, 10, 8, 4);
+
+      // Upper Octagonal Lantern Stage of the Grand Spire (Y = 100..110)
+      buildGothicBox(2, 14, -20, -8, 100, 110, 4, true, true);
+
+      // Four Tall Corner Pinnacles framing the Grand Spire at Y = 100..112
+      const corners = [[1, -21], [15, -21], [1, -7], [15, -7]];
+      for (const [px, pz] of corners) {
+        for (let y = 100; y <= 111; y++) {
+          setVoxel(px, y, pz, y >= 108 ? 8 : 7, 4);
+          if (y <= 106) {
+            setVoxel(px + (px < 8 ? 1 : -1), y, pz, 7, 4);
+            setVoxel(px, y, pz + (pz < -14 ? 1 : -1), 7, 4);
+          }
+        }
+      }
+
+      // The Needle-Sharp Grand Gothic Spire (Y = 110..138)
+      buildGothicSpire(8, -14, 6.2, 110, 138, 10, 8, 4);
+      // Golden Finial Cross at the very apex (Y = 139..141)
+      setVoxel(8, 139, -14, 8, 4);
+      setVoxel(8, 140, -14, 8, 4);
+      setVoxel(7, 139, -14, 8, 4);
+      setVoxel(9, 139, -14, 8, 4);
+
+      // -----------------------------------------------------------------------
+      // PASS 7: FLOATING ARCANE RED OCTAHEDRON, SHARDS & SKY EMBERS
+      // -----------------------------------------------------------------------
+      // 7A. The Floating Red Octahedron Crystal (X = +31, Y = +118, Z = -6)
+      const cryX = 31, cryY = 118, cryZ = -6;
+      for (let dx = -6; dx <= 6; dx++) {
+        for (let dy = -6; dy <= 6; dy++) {
+          for (let dz = -6; dz <= 6; dz++) {
+            const octMetric = Math.abs(dx) + Math.abs(dy) * 1.15 + Math.abs(dz);
+            if (octMetric <= 5.4) {
+              const isCore = octMetric <= 2.4;
+              setVoxel(cryX + dx, cryY + dy, cryZ + dz, isCore ? 14 : 15, 6);
+            }
+          }
+        }
+      }
+
+      // 7B. Swirling Arcane Red Shard Cluster between the Eastern Turret and the Octahedron
+      for (let i = 0; i < 62; i++) {
+        const t = i / 62.0;
+        const sx = Math.round(lerp(22, 33, t) + (hash3(i, 1, 2) - 0.5) * 14.0);
+        const sy = Math.round(lerp(88, 114, t) + (hash3(i, 3, 4) - 0.5) * 10.0);
+        const sz = Math.round(lerp(-12, -2, t) + (hash3(i, 5, 6) - 0.5) * 12.0);
+        const mat = hash3(i, 7, 8) > 0.72 ? 13 : 15;
+        setVoxel(sx, sy, sz, mat, 6);
+        if (hash3(i, 9, 10) > 0.55) setVoxel(sx + 1, sy, sz, 15, 6);
+      }
+
+      // 7C. Levitating Upper-Left Volcanic Pebble Fragment (visible in reference sky at X ≈ -38, Y ≈ +106)
+      const pebX = -38, pebY = 106, pebZ = 6;
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dz = -2; dz <= 2; dz++) {
+            if (dx*dx + dy*dy + dz*dz <= 4.5) {
+              setVoxel(pebX + dx, pebY + dy, pebZ + dz, 2, 6);
+            }
+          }
+        }
+      }
+
+      // 7D. Atmospheric Rising Magma Embers around the Sky & Waterfall
+      for (let i = 0; i < 160; i++) {
+        const ex = Math.round((hash3(i, 101, 13) - 0.5) * 124);
+        const ey = Math.round(-150 + hash3(i, 103, 17) * 285);
+        const ez = Math.round((hash3(i, 107, 19) - 0.5) * 116);
+        if (getVoxel(ex, ey, ez) === 0) {
+          const emat = hash3(i, 109, 23) > 0.5 ? 15 : 13;
+          setVoxel(ex, ey, ez, emat, 6);
+        }
+      }
+    }
+
+    // =========================================================================
+    // 4. EXTRACT VISIBLE SURFACE & CUT-PLANE INSTANCES WITH 3D VOXEL AO
+    // =========================================================================
+    // We allocate reusable Float32Arrays for up to 320,000 visible mini-blocks
+    const MAX_INSTANCES = 320000;
+    const instanceData1 = new Float32Array(MAX_INSTANCES * 4); // x, y, z, materialId
+    const instanceData2 = new Float32Array(MAX_INSTANCES * 4); // ao, lavaLight, colorNoise, zoneId
+    let activeInstanceCount = 0;
+    let totalMagmaVoxels = 0;
+
+    function extractSurfaceVoxels(sliceX = 72, sliceY = 144) {
+      let count = 0;
+      let magmaCount = 0;
+
+      for (let y = -OY + 1; y <= Math.min(GY - OY - 2, sliceY); y++) {
+        const yOff = (y + OY) * GX;
+        const onSliceY = (y === sliceY && sliceY < 144);
+
+        for (let x = -OX + 1; x <= Math.min(GX - OX - 2, sliceX); x++) {
+          const xyOff = (yOff + (x + OX)) * GZ;
+          const onSliceX = (x === sliceX && sliceX < 72);
+
+          for (let z = -OZ + 1; z < GZ - OZ - 1; z++) {
+            const i = xyOff + (z + OZ);
+            const mat = grid[i];
+            if (mat === 0) continue;
+
+            // Check 6-connected neighbors for surface visibility or slice boundary
+            const isSurface =
+              onSliceX || onSliceY ||
+              grid[i - 1] === 0 ||
+              grid[i + 1] === 0 ||
+              grid[i - GZ] === 0 ||
+              grid[i + GZ] === 0 ||
+              grid[i - GX * GZ] === 0 ||
+              grid[i + GX * GZ] === 0;
+
+            if (!isSurface) continue;
+            if (count >= MAX_INSTANCES) break;
+
+            // Compute fast 3D Voxel Ambient Occlusion from 18 surrounding neighbors
+            let occ = 0;
+            const strideY = GX * GZ;
+            const strideX = GZ;
+            if (grid[i + strideY] !== 0) occ += 2;
+            if (grid[i + strideY + strideX] !== 0) occ += 1;
+            if (grid[i + strideY - strideX] !== 0) occ += 1;
+            if (grid[i + strideY + 1] !== 0) occ += 1;
+            if (grid[i + strideY - 1] !== 0) occ += 1;
+            if (grid[i + strideX + 1] !== 0) occ += 1;
+            if (grid[i + strideX - 1] !== 0) occ += 1;
+            if (grid[i - strideX + 1] !== 0) occ += 1;
+            if (grid[i - strideX - 1] !== 0) occ += 1;
+
+            const ao = clamp(1.0 - (occ / 13.0) * 0.62, 0.34, 1.0);
+
+            // Compute analytical Magma Bounce Light proximity (from caldera y≈40 & fissure canyon)
+            let lavaLight = 0.0;
+            // 1) Caldera lake bounce light onto lower castle walls & inner curtain walls
+            if (y >= 38 && y <= 84) {
+              const rCaldera = Math.sqrt(x * x + z * z);
+              if (rCaldera < 48.0) {
+                const hDist = Math.max(0.0, y - 40.0);
+                lavaLight += Math.exp(-hDist * 0.065) * 0.85;
+              }
+            }
+            // 2) Side fissure & bottom lava waterfall bounce light onto basalt cliffs
+            if (y <= 40) {
+              const [fx, fz] = getFissureCenter(Math.max(-110, y));
+              const dFiss = Math.sqrt((x - fx) * (x - fx) + (z - fz) * (z - fz));
+              lavaLight += Math.exp(-dFiss * 0.085) * 0.95;
+            }
+            lavaLight = clamp(lavaLight, 0.0, 1.25);
+
+            const cNoise = hash3(x, y, z);
+            const zId = zoneGrid[i];
+
+            const base4 = count * 4;
+            instanceData1[base4]     = x;
+            instanceData1[base4 + 1] = y;
+            instanceData1[base4 + 2] = z;
+            instanceData1[base4 + 3] = mat;
+
+            instanceData2[base4]     = ao;
+            instanceData2[base4 + 1] = lavaLight;
+            instanceData2[base4 + 2] = cNoise;
+            instanceData2[base4 + 3] = zId;
+
+            if (mat >= 11 && mat <= 15) magmaCount++;
+            count++;
+          }
+        }
+      }
+
+      activeInstanceCount = count;
+      totalMagmaVoxels = magmaCount;
+      document.getElementById("stat-voxels").textContent = count.toLocaleString();
+      document.getElementById("stat-magma").textContent = magmaCount.toLocaleString();
+    }
+
+    // =========================================================================
+    // 5. WEBGL2 HARDWARE-INSTANCED VOXEL ENGINE & SHADERS
+    // =========================================================================
+    const canvas = document.getElementById("voxel-canvas");
+    const gl = canvas.getContext("webgl2", { antialias: true, alpha: false, powerPreference: "high-performance" });
+
+    if (!gl) {
+      alert("WebGL2 is required to view this high-density 3D voxel scene.");
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    // 5A. ATMOSPHERIC VOLCANIC SKY, VOLUMETRIC CLOUDS & CANYON BACKDROP SHADER
+    // -------------------------------------------------------------------------
+    const bgVertSrc = `#version 300 es
+    precision highp float;
+    out vec2 v_uv;
+    void main() {
+      vec2 pos[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
+      gl_Position = vec4(pos[gl_VertexID], 0.9999, 1.0);
+      v_uv = pos[gl_VertexID] * 0.5 + 0.5;
+    }`;
+
+    const bgFragSrc = `#version 300 es
+    precision highp float;
+    in vec2 v_uv;
+    uniform float u_time;
+    uniform vec2 u_resolution;
+    uniform vec2 u_camAngles; // yaw, pitch
+    uniform int u_theme;
+    out vec4 outColor;
+
+    float hash2(vec2 p) {
+      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+    }
+
+    float noise2(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash2(i + vec2(0.0,0.0)), hash2(i + vec2(1.0,0.0)), u.x),
+                 mix(hash2(i + vec2(0.0,1.0)), hash2(i + vec2(1.0,1.0)), u.x), u.y);
+    }
+
+    float fbm(vec2 p) {
+      float v = 0.0;
+      float a = 0.52;
+      for (int i = 0; i < 5; i++) {
+        v += a * noise2(p);
+        p = p * 2.04 + vec2(1.7, 9.2);
+        a *= 0.5;
+      }
+      return v;
+    }
+
+    void main() {
+      vec2 uv = v_uv;
+      float aspect = u_resolution.x / max(1.0, u_resolution.y);
+      vec2 p = vec2((uv.x - 0.5) * aspect, uv.y - 0.5);
+
+      // Subtle parallax from camera rotation
+      vec2 parallax = vec2(u_camAngles.x * 0.18, u_camAngles.y * 0.14);
+
+      if (u_theme == 1) {
+        // Midnight Magma Eclipse Mode
+        vec3 sky = mix(vec3(0.16, 0.03, 0.02), vec3(0.03, 0.02, 0.05), smoothstep(0.0, 0.85, uv.y));
+        float glow = exp(-length(p - vec2(0.0, -0.25)) * 2.4);
+        sky += vec3(0.55, 0.12, 0.02) * glow;
+        outColor = vec4(sky, 1.0);
+        return;
+      }
+      if (u_theme == 2) {
+        // Clear Architectural Daylight
+        vec3 sky = mix(vec3(0.84, 0.76, 0.70), vec3(0.32, 0.36, 0.46), smoothstep(0.0, 1.0, uv.y));
+        outColor = vec4(sky, 1.0);
+        return;
+      }
+      if (u_theme == 3) {
+        // Thermal Blueprint Mode
+        vec3 sky = mix(vec3(0.05, 0.08, 0.16), vec3(0.02, 0.03, 0.07), uv.y);
+        outColor = vec4(sky, 1.0);
+        return;
+      }
+
+      // Default Theme 0: Golden Volcanic Dusk matching reference image!
+      vec3 zenithCol  = vec3(0.34, 0.25, 0.27);
+      vec3 midSkyCol  = vec3(0.49, 0.36, 0.35);
+      vec3 lowGlowCol = vec3(0.38, 0.15, 0.11);
+      vec3 abyssCol   = vec3(0.16, 0.07, 0.06);
+
+      vec3 col = mix(abyssCol, lowGlowCol, smoothstep(0.0, 0.36, uv.y));
+      col = mix(col, midSkyCol, smoothstep(0.32, 0.68, uv.y));
+      col = mix(col, zenithCol, smoothstep(0.65, 1.0, uv.y));
+
+      // Billowing Cumulus / Pyroclastic Clouds in the upper sky (matching left & right cloud banks in reference)
+      if (uv.y > 0.26) {
+        vec2 cUV = p * 2.4 + parallax + vec2(u_time * 0.008, 0.0);
+        float cLeft  = smoothstep(0.55, 0.05, length(p - vec2(-0.32, 0.22)));
+        float cRight = smoothstep(0.62, 0.05, length(p - vec2( 0.34, 0.18)));
+        float n1 = fbm(cUV * 1.4);
+        float n2 = fbm(cUV * 2.9 - vec2(0.4, 0.3));
+        float cloudShape = smoothstep(0.36, 0.72, n1 * 0.8 + (cLeft + cRight) * 0.52) * smoothstep(0.26, 0.45, uv.y);
+
+        // Sun-lit cream-gold top vs warm rose-taupe cloud shadow
+        float lightGrad = smoothstep(0.35, 0.72, n2 + uv.y * 0.25 + p.x * 0.15);
+        vec3 cloudShadow = vec3(0.46, 0.34, 0.32);
+        vec3 cloudLit    = vec3(0.98, 0.89, 0.76);
+        vec3 cloudColor  = mix(cloudShadow, cloudLit, lightGrad);
+        col = mix(col, cloudColor, cloudShape * 0.92);
+      }
+
+      // Lower Volcanic Mountain Peaks & Glowing Canyon Abyss (matching bottom of reference image)
+      if (uv.y < 0.45) {
+        float m1 = 0.22 + 0.15 * abs(p.x * 1.6) + 0.06 * fbm(vec2(p.x * 4.5 + parallax.x, 1.2));
+        float m2 = 0.16 + 0.12 * abs(p.x * 1.3 - 0.1) + 0.05 * fbm(vec2(p.x * 6.5 + parallax.x, 3.4));
+        if (uv.y < m1) {
+          vec3 ridgeCol = vec3(0.24, 0.11, 0.09);
+          // Warm rim light on mountain ridges facing the central lava waterfall
+          float rimGlow = exp(-abs(p.x) * 3.5) * smoothstep(m1 - 0.08, m1, uv.y);
+          ridgeCol += vec3(0.55, 0.22, 0.06) * rimGlow;
+          col = mix(col, ridgeCol, 0.88);
+        }
+        if (uv.y < m2) {
+          vec3 fgRidge = vec3(0.14, 0.06, 0.06);
+          // Subtle lava river veins in the bottom-right canyon valley
+          float vein = smoothstep(0.76, 0.82, fbm(vec2(p.x * 14.0, uv.y * 18.0)));
+          fgRidge += vec3(0.85, 0.28, 0.04) * vein * smoothstep(0.35, 0.0, abs(p.x - 0.18));
+          col = mix(col, fgRidge, 0.95);
+        }
+      }
+
+      // Radiant fiery atmospheric bloom around the central island & lower waterfall
+      float waterfallBloom = exp(-length(vec2(p.x * 1.8, (uv.y - 0.24) * 1.3)) * 3.2);
+      col += vec3(0.85, 0.32, 0.05) * waterfallBloom * 0.48;
+
+      outColor = vec4(col, 1.0);
+    }`;
+
+    // -------------------------------------------------------------------------
+    // 5B. INSTANCED 3D MINI-VOXEL VERTEX & FRAGMENT SHADERS
+    // -------------------------------------------------------------------------
+    const voxelVertSrc = `#version 300 es
+    precision highp float;
+
+    layout(location = 0) in vec3 a_cubePos;
+    layout(location = 1) in vec3 a_cubeNormal;
+    layout(location = 2) in vec2 a_cubeUV;
+    layout(location = 3) in vec4 a_inst1; // x, y, z, materialId
+    layout(location = 4) in vec4 a_inst2; // ao, lavaLight, colorNoise, zoneId
+
+    uniform mat4 u_viewProj;
+    uniform float u_blockScale;
+    uniform float u_time;
+    uniform int u_activeZone;
+    uniform vec3 u_hoverVoxel;
+
+    out vec3 v_worldPos;
+    out vec3 v_normal;
+    out vec2 v_uv;
+    flat out int v_matId;
+    flat out int v_zoneId;
+    out float v_ao;
+    out float v_lavaLight;
+    out float v_noise;
+    flat out int v_isHovered;
+
+    void main() {
+      int matId = int(a_inst1.w + 0.5);
+      int zoneId = int(a_inst2.w + 0.5);
+
+      // Layer isolation filter
+      if (u_activeZone != 0 && zoneId != u_activeZone) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 0.0);
+        return;
+      }
+
+      vec3 gridPos = a_inst1.xyz;
+
+      // Subtle floating animation for Zone 6 (Arcane Crystal & Sky Embers)
+      if (zoneId == 6) {
+        float bob = sin(u_time * 2.2 + a_inst2.z * 6.2831) * 0.85;
+        gridPos.y += bob;
+      }
+
+      // Check if this exact mini-block is currently hovered by the user's cursor
+      int isHovered = (
+        abs(a_inst1.x - u_hoverVoxel.x) < 0.1 &&
+        abs(a_inst1.y - u_hoverVoxel.y) < 0.1 &&
+        abs(a_inst1.z - u_hoverVoxel.z) < 0.1
+      ) ? 1 : 0;
+
+      // Scale individual mini-block (supports Exploded Mini-Block view!)
+      float scale = isHovered == 1 ? 1.18 : u_blockScale;
+      vec3 worldPos = gridPos + a_cubePos * scale;
+
+      v_worldPos = worldPos;
+      v_normal = a_cubeNormal;
+      v_uv = a_cubeUV;
+      v_matId = matId;
+      v_zoneId = zoneId;
+      v_ao = a_inst2.x;
+      v_lavaLight = a_inst2.y;
+      v_noise = a_inst2.z;
+      v_isHovered = isHovered;
+
+      gl_Position = u_viewProj * vec4(worldPos, 1.0);
+    }`;
+
+    const voxelFragSrc = `#version 300 es
+    precision highp float;
+
+    in vec3 v_worldPos;
+    in vec3 v_normal;
+    in vec2 v_uv;
+    flat in int v_matId;
+    flat in int v_zoneId;
+    in float v_ao;
+    in float v_lavaLight;
+    in float v_noise;
+    flat in int v_isHovered;
+
+    uniform vec3 u_camPos;
+    uniform float u_time;
+    uniform float u_bevelStrength;
+    uniform float u_magmaIntensity;
+    uniform int u_theme;
+
+    out vec4 outColor;
+
+    vec3 getMaterialBaseColor(int m, float n) {
+      if (m == 1)  return mix(vec3(0.18, 0.15, 0.18), vec3(0.28, 0.23, 0.26), n); // Deep Basalt
+      if (m == 2)  return mix(vec3(0.30, 0.24, 0.27), vec3(0.44, 0.35, 0.37), n); // Craggy Slate
+      if (m == 3)  return mix(vec3(0.45, 0.34, 0.31), vec3(0.60, 0.46, 0.40), n); // Warm Cliff Rock
+      if (m == 4)  return mix(vec3(0.11, 0.08, 0.10), vec3(0.21, 0.13, 0.14), n); // Charred Obsidian
+      if (m == 5)  return mix(vec3(0.30, 0.44, 0.19), vec3(0.44, 0.58, 0.26), n); // Deep Olive Moss
+      if (m == 6)  return mix(vec3(0.52, 0.66, 0.29), vec3(0.68, 0.80, 0.38), n); // Sunlit Highland Turf
+      if (m == 7)  return mix(vec3(0.58, 0.41, 0.32), vec3(0.73, 0.53, 0.41), n); // Fortress Masonry
+      if (m == 8)  return mix(vec3(0.75, 0.57, 0.44), vec3(0.90, 0.72, 0.56), n); // Ochre Freestone
+      if (m == 9)  return mix(vec3(0.35, 0.24, 0.19), vec3(0.45, 0.32, 0.25), n); // Recessed Tracery
+      if (m == 10) return mix(vec3(0.26, 0.19, 0.18), vec3(0.37, 0.27, 0.25), n); // Gothic Spire Slate
+      if (m == 11) return mix(vec3(0.62, 0.09, 0.04), vec3(0.85, 0.18, 0.06), n); // Crimson Magma Crust
+      if (m == 12) return mix(vec3(0.96, 0.28, 0.02), vec3(1.00, 0.48, 0.05), n); // Molten Orange Flow
+      if (m == 13) return mix(vec3(1.00, 0.62, 0.04), vec3(1.00, 0.82, 0.14), n); // Gold Magma
+      if (m == 14) return mix(vec3(1.00, 0.92, 0.38), vec3(1.00, 0.99, 0.78), n); // White-Hot Core
+      if (m == 15) return mix(vec3(0.95, 0.12, 0.06), vec3(1.00, 0.42, 0.18), n); // Arcane Red Crystal
+      if (m == 16) return mix(vec3(1.00, 0.56, 0.12), vec3(1.00, 0.80, 0.32), n); // Cathedral Lantern
+      return vec3(0.5);
+    }
+
+    void main() {
+      // 1. Compute crisp micro-block 3D bevel & edge outline on every individual voxel!
+      vec2 edgeDist = min(v_uv, 1.0 - v_uv);
+      float minEdge = min(edgeDist.x, edgeDist.y);
+      float cornerDist = length(max(vec2(0.0), vec2(0.14) - edgeDist));
+
+      // Perturb normal along cube edges to create authentic 3D beveled mini-blocks
+      vec2 centeredUV = v_uv - 0.5;
+      vec3 N = normalize(v_normal);
+      float bevelMask = 1.0 - smoothstep(0.0, 0.16, minEdge);
+      float edgeSeam  = 1.0 - smoothstep(0.0, 0.055 + u_bevelStrength * 0.045, minEdge);
+
+      // Subtle micro-grain texture inside each mini-block face
+      vec2 microGrid = floor(v_uv * 4.0);
+      float subTex = fract(sin(dot(microGrid + v_noise * 17.0, vec2(12.9898, 78.233))) * 43758.5453);
+
+      vec3 baseCol = getMaterialBaseColor(v_matId, v_noise);
+      baseCol *= (0.95 + 0.10 * subTex);
+
+      // Thermal Blueprint X-Ray Mode override
+      if (u_theme == 3) {
+        bool isHot = (v_matId >= 11 && v_matId <= 16);
+        vec3 coldCol = mix(vec3(0.08, 0.22, 0.48), vec3(0.18, 0.58, 0.88), (v_worldPos.y + 150.0) / 290.0);
+        vec3 hotCol  = mix(vec3(1.0, 0.25, 0.05), vec3(1.0, 0.96, 0.55), float(v_matId - 10) / 6.0);
+        baseCol = isHot ? hotCol : coldCol;
+      }
+
+      // 2. Emissive Magma, Arcane Crystal & Lantern Shaders
+      if (v_matId >= 11 && v_matId <= 16) {
+        float flowDir = (v_worldPos.y < 36.0) ? (u_time * 3.2) : (u_time * 1.1);
+        float wave = sin(v_worldPos.x * 0.35 + v_worldPos.y * 0.28 + flowDir + v_noise * 5.0) * 0.5 + 0.5;
+        vec3 hotPulse = baseCol * (0.92 + 0.28 * wave) * u_magmaIntensity;
+
+        // Crisp glowing or dark crust bevel on magma blocks
+        float magmaEdge = edgeSeam * u_bevelStrength * 0.42;
+        hotPulse = mix(hotPulse, hotPulse * 0.55, magmaEdge);
+
+        if (v_isHovered == 1) {
+          hotPulse = mix(hotPulse, vec3(1.0, 1.0, 1.0), 0.45);
+        }
+        outColor = vec4(clamp(hotPulse, 0.0, 1.0), 1.0);
+        return;
+      }
+
+      // 3. Directional Sun + Sky Hemisphere + Dynamic Flickering Magma Bounce Lighting
+      vec3 sunDir = normalize(vec3(0.62, 0.72, 0.32)); // Golden sun from upper-right
+      vec3 backDir = normalize(vec3(-0.55, 0.25, -0.65));
+
+      float sunDiff = max(0.0, dot(N, sunDir));
+      float backRim = max(0.0, dot(N, backDir));
+      float upHem   = N.y * 0.5 + 0.5;
+
+      vec3 sunLightCol = (u_theme == 1) ? vec3(0.22, 0.18, 0.30) :
+                         (u_theme == 2) ? vec3(1.05, 0.98, 0.92) :
+                                          vec3(1.08, 0.84, 0.64);
+      vec3 skyAmbCol   = (u_theme == 1) ? vec3(0.08, 0.06, 0.14) :
+                         (u_theme == 2) ? vec3(0.45, 0.48, 0.56) :
+                                          vec3(0.34, 0.24, 0.28);
+
+      // Flickering warm orange-gold magma bounce light from the caldera & waterfall
+      float flicker = 0.94 + 0.06 * sin(u_time * 4.5 + v_worldPos.x * 0.15 + v_worldPos.y * 0.1);
+      float lavaFaceBias = clamp(0.65 - 0.35 * N.y + 0.25 * N.z, 0.25, 1.15);
+      vec3 magmaBounce = vec3(1.05, 0.42, 0.08) * v_lavaLight * lavaFaceBias * u_magmaIntensity * flicker;
+
+      // Specular bevel catch-light on block edges
+      vec3 V = normalize(u_camPos - v_worldPos);
+      vec3 H = normalize(sunDir + V);
+      float spec = pow(max(0.0, dot(N, H)), 18.0) * (0.18 + bevelMask * 0.35 * u_bevelStrength);
+
+      vec3 litColor = baseCol * (
+        skyAmbCol * (0.45 + 0.55 * upHem) +
+        sunLightCol * sunDiff * 0.88 +
+        vec3(0.45, 0.32, 0.38) * backRim * 0.28
+      ) * v_ao + magmaBounce * baseCol * 1.45 + sunLightCol * spec * 0.28;
+
+      // Apply crisp micro-block mortar seam & bevel highlight so individual blocks pop!
+      float seamDarken = edgeSeam * u_bevelStrength * 0.72;
+      float bevelHighlight = bevelMask * (1.0 - edgeSeam) * u_bevelStrength * 0.24 * (0.5 + 0.5 * N.y);
+      litColor = litColor * (1.0 - seamDarken) + vec3(1.0, 0.86, 0.72) * bevelHighlight;
+
+      // Subtle atmospheric perspective / volcanic mist on lower spire
+      if (u_theme == 0) {
+        float lowMist = smoothstep(10.0, -145.0, v_worldPos.y) * 0.28;
+        litColor = mix(litColor, vec3(0.58, 0.22, 0.10), lowMist);
+      }
+
+      // Highlight hovered voxel block
+      if (v_isHovered == 1) {
+        litColor = mix(litColor, vec3(1.0, 0.95, 0.65), 0.55) + vec3(0.25, 0.18, 0.05);
+      }
+
+      // Filmic tone curve
+      litColor = litColor / (1.0 + litColor * 0.18);
+      outColor = vec4(clamp(litColor, 0.0, 1.0), 1.0);
+    }`;
+
+    // -------------------------------------------------------------------------
+    // 5C. ADDITIVE VOLUMETRIC MAGMA BLOOM BILLBOARD SHADER
+    // -------------------------------------------------------------------------
+    const glowVertSrc = `#version 300 es
+    precision highp float;
+    layout(location = 0) in vec2 a_quad;
+    layout(location = 1) in vec4 a_glowPosRad; // x, y, z, radius
+    layout(location = 2) in vec4 a_glowColor;  // r, g, b, intensity
+
+    uniform mat4 u_viewProj;
+    uniform vec3 u_camRight;
+    uniform vec3 u_camUp;
+    uniform float u_magmaIntensity;
+    uniform int u_activeZone;
+
+    out vec2 v_uv;
+    out vec4 v_col;
+
+    void main() {
+      if (u_activeZone != 0 && u_activeZone != 2 && u_activeZone != 6) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 0.0);
+        return;
+      }
+      float rad = a_glowPosRad.w;
+      vec3 worldPos = a_glowPosRad.xyz + (u_camRight * a_quad.x + u_camUp * a_quad.y) * rad;
+      v_uv = a_quad;
+      v_col = vec4(a_glowColor.rgb, a_glowColor.a * u_magmaIntensity);
+      gl_Position = u_viewProj * vec4(worldPos, 1.0);
+    }`;
+
+    const glowFragSrc = `#version 300 es
+    precision highp float;
+    in vec2 v_uv;
+    in vec4 v_col;
+    out vec4 outColor;
+    void main() {
+      float d = length(v_uv);
+      if (d > 1.0) discard;
+      float falloff = pow(1.0 - d, 2.6);
+      outColor = vec4(v_col.rgb * falloff * v_col.a, 1.0);
+    }`;
+
+    function compileShader(type, src) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        console.error("Shader compile error:", gl.getShaderInfoLog(s));
+      }
+      return s;
+    }
+
+    function createProgram(vsSrc, fsSrc) {
+      const p = gl.createProgram();
+      gl.attachShader(p, compileShader(gl.VERTEX_SHADER, vsSrc));
+      gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER, fsSrc));
+      gl.linkProgram(p);
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+        console.error("Program link error:", gl.getProgramInfoLog(p));
+      }
+      return p;
+    }
+
+    const bgProg    = createProgram(bgVertSrc, bgFragSrc);
+    const voxelProg = createProgram(voxelVertSrc, voxelFragSrc);
+    const glowProg  = createProgram(glowVertSrc, glowFragSrc);
+
+    // -------------------------------------------------------------------------
+    // 5D. UNIT CUBE GEOMETRY & INSTANCE BUFFERS
+    // -------------------------------------------------------------------------
+    // 24 vertices (4 per face) with exact normals and [0..1] face UVs
+    const cubeVerts = new Float32Array([
+      // +Z Front face
+      -0.5,-0.5, 0.5,  0,0,1,  0,0,   0.5,-0.5, 0.5,  0,0,1,  1,0,   0.5, 0.5, 0.5,  0,0,1,  1,1,  -0.5, 0.5, 0.5,  0,0,1,  0,1,
+      // -Z Back face
+       0.5,-0.5,-0.5,  0,0,-1, 0,0,  -0.5,-0.5,-0.5,  0,0,-1, 1,0,  -0.5, 0.5,-0.5,  0,0,-1, 1,1,   0.5, 0.5,-0.5,  0,0,-1, 0,1,
+      // +Y Top face
+      -0.5, 0.5, 0.5,  0,1,0,  0,0,   0.5, 0.5, 0.5,  0,1,0,  1,0,   0.5, 0.5,-0.5,  0,1,0,  1,1,  -0.5, 0.5,-0.5,  0,1,0,  0,1,
+      // -Y Bottom face
+      -0.5,-0.5,-0.5,  0,-1,0, 0,0,   0.5,-0.5,-0.5,  0,-1,0, 1,0,   0.5,-0.5, 0.5,  0,-1,0, 1,1,  -0.5,-0.5, 0.5,  0,-1,0, 0,1,
+      // +X Right face
+       0.5,-0.5, 0.5,  1,0,0,  0,0,   0.5,-0.5,-0.5,  1,0,0,  1,0,   0.5, 0.5,-0.5,  1,0,0,  1,1,   0.5, 0.5, 0.5,  1,0,0,  0,1,
+      // -X Left face
+      -0.5,-0.5,-0.5, -1,0,0,  0,0,  -0.5,-0.5, 0.5, -1,0,0,  1,0,  -0.5, 0.5, 0.5, -1,0,0,  1,1,  -0.5, 0.5,-0.5, -1,0,0,  0,1
+    ]);
+
+    const cubeIndices = new Uint16Array([
+       0, 1, 2,  0, 2, 3,
+       4, 5, 6,  4, 6, 7,
+       8, 9,10,  8,10,11,
+      12,13,14, 12,14,15,
+      16,17,18, 16,18,19,
+      20,21,22, 20,22,23
+    ]);
+
+    const voxelVAO = gl.createVertexArray();
+    gl.bindVertexArray(voxelVAO);
+
+    const cubeVBO = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, cubeVBO);
+    gl.bufferData(gl.ARRAY_BUFFER, cubeVerts, gl.STATIC_DRAW);
+
+    const cubeEBO = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeEBO);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, cubeIndices, gl.STATIC_DRAW);
+
+    // Per-vertex attributes (locations 0, 1, 2)
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24);
+
+    // Per-instance buffers (locations 3, 4)
+    const instBuf1 = gl.createBuffer();
+    const instBuf2 = gl.createBuffer();
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, instBuf1);
+    gl.bufferData(gl.ARRAY_BUFFER, instanceData1.byteLength, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(3);
+    gl.vertexAttribPointer(3, 4, gl.FLOAT, false, 16, 0);
+    gl.vertexAttribDivisor(3, 1);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, instBuf2);
+    gl.bufferData(gl.ARRAY_BUFFER, instanceData2.byteLength, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(4);
+    gl.vertexAttribPointer(4, 4, gl.FLOAT, false, 16, 0);
+    gl.vertexAttribDivisor(4, 1);
+
+    function uploadInstanceBuffers() {
+      gl.bindBuffer(gl.ARRAY_BUFFER, instBuf1);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, instanceData1.subarray(0, activeInstanceCount * 4));
+      gl.bindBuffer(gl.ARRAY_BUFFER, instBuf2);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, instanceData2.subarray(0, activeInstanceCount * 4));
+    }
+
+    // -------------------------------------------------------------------------
+    // 5E. VOLUMETRIC MAGMA BLOOM BILLBOARD SPRITES
+    // -------------------------------------------------------------------------
+    const glowSprites = [
+      // Caldera lake glow halos
+      [-18, 43,  20, 26,  1.0, 0.45, 0.06, 0.22],
+      [ -4, 43,  24, 28,  1.0, 0.55, 0.08, 0.24],
+      [-26, 43,   6, 22,  1.0, 0.40, 0.05, 0.18],
+      [ 20, 43,  18, 20,  1.0, 0.42, 0.06, 0.16],
+      // Fissure canyon glow halos
+      [ 18, 12,  32, 24,  1.0, 0.45, 0.05, 0.22],
+      [ 15,-18,  26, 28,  1.0, 0.50, 0.08, 0.26],
+      [ 11,-48,  20, 32,  1.0, 0.55, 0.10, 0.30],
+      [  6,-78,  14, 30,  1.0, 0.62, 0.14, 0.30],
+      // Bottom Abyssal Waterfall blazing core glow
+      [  2,-108,  8, 34,  1.0, 0.72, 0.20, 0.36],
+      [  1,-132,  7, 36,  1.0, 0.80, 0.25, 0.38],
+      [  1,-152,  7, 30,  1.0, 0.68, 0.18, 0.30],
+      // Floating Arcane Red Octahedron glow
+      [ 31, 118, -6, 18,  1.0, 0.22, 0.08, 0.38]
+    ];
+
+    const glowVAO = gl.createVertexArray();
+    gl.bindVertexArray(glowVAO);
+
+    const quadVBO = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadVBO);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 8, 0);
+
+    const glowPosData = new Float32Array(glowSprites.length * 4);
+    const glowColData = new Float32Array(glowSprites.length * 4);
+    glowSprites.forEach((g, idx) => {
+      glowPosData.set(g.slice(0, 4), idx * 4);
+      glowColData.set(g.slice(4, 8), idx * 4);
+    });
+
+    const glowPosVBO = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, glowPosVBO);
+    gl.bufferData(gl.ARRAY_BUFFER, glowPosData, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 16, 0);
+    gl.vertexAttribDivisor(1, 1);
+
+    const glowColVBO = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, glowColVBO);
+    gl.bufferData(gl.ARRAY_BUFFER, glowColData, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 16, 0);
+    gl.vertexAttribDivisor(2, 1);
+
+    const bgVAO = gl.createVertexArray();
+
+    // =========================================================================
+    // 6. CAMERA ORBIT / PAN / MACRO-ZOOM & GUIDED TOUR PRESETS
+    // =========================================================================
+    const PRESETS = {
+      poster:    { yaw:  0.05, pitch:  0.37, dist: 470, target: [  0,   6,   0], scale: 1.00 },
+      spire:     { yaw: -0.16, pitch:  0.18, dist: 108, target: [  6, 104, -13], scale: 1.00 },
+      caldera:   { yaw:  0.15, pitch:  0.46, dist: 105, target: [ -8,  44,  18], scale: 1.00 },
+      bastion:   { yaw: -0.35, pitch:  0.30, dist:  92, target: [-22,  45,  34], scale: 1.00 },
+      colonnade: { yaw:  0.48, pitch:  0.24, dist:  98, target: [ 18,  58,   4], scale: 1.00 },
+      fissure:   { yaw:  0.28, pitch:  0.10, dist: 118, target: [ 16, -24,  24], scale: 1.00 },
+      falls:     { yaw:  0.10, pitch: -0.04, dist: 124, target: [  2,-118,   8], scale: 1.00 },
+      crystal:   { yaw:  0.32, pitch:  0.14, dist:  68, target: [ 29, 112,  -6], scale: 1.00 },
+      macro:     { yaw:  0.24, pitch:  0.34, dist:  44, target: [ 14,  50,  14], scale: 0.88 }
+    };
+
+    const cam = {
+      yaw: PRESETS.poster.yaw,
+      pitch: PRESETS.poster.pitch,
+      dist: PRESETS.poster.dist,
+      target: [...PRESETS.poster.target],
+      goalYaw: PRESETS.poster.yaw,
+      goalPitch: PRESETS.poster.pitch,
+      goalDist: PRESETS.poster.dist,
+      goalTarget: [...PRESETS.poster.target],
+      pos: [0, 0, 315],
+      right: [1, 0, 0],
+      up: [0, 1, 0],
+      forward: [0, 0, -1],
+      autoOrbit: false
+    };
+
+    const state = {
+      blockScale: 1.00,
+      bevelStrength: 0.55,
+      magmaIntensity: 1.25,
+      sliceX: 72,
+      sliceY: 144,
+      activeZone: 0,
+      theme: 0,
+      hoverVoxel: [-999, -999, -999]
+    };
+
+    function applyCameraPreset(key) {
+      const p = PRESETS[key];
+      if (!p) return;
+      cam.goalYaw = p.yaw;
+      cam.goalPitch = p.pitch;
+      cam.goalDist = p.dist;
+      cam.goalTarget = [...p.target];
+
+      document.querySelectorAll(".preset-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.preset === key);
+      });
+    }
+
+    // Matrix math helpers (column-major 4x4)
+    function perspectiveMatrix(fovRad, aspect, near, far) {
+      const f = 1.0 / Math.tan(fovRad * 0.5);
+      const nf = 1.0 / (near - far);
+      return new Float32Array([
+        f / aspect, 0, 0, 0,
+        0, f, 0, 0,
+        0, 0, (far + near) * nf, -1,
+        0, 0, (2 * far * near) * nf, 0
+      ]);
+    }
+
+    function lookAtMatrix(eye, center, up) {
+      let zx = eye[0] - center[0], zy = eye[1] - center[1], zz = eye[2] - center[2];
+      let len = Math.hypot(zx, zy, zz) || 1;
+      zx /= len; zy /= len; zz /= len;
+
+      let xx = up[1] * zz - up[2] * zy;
+      let xy = up[2] * zx - up[0] * zz;
+      let xz = up[0] * zy - up[1] * zx;
+      len = Math.hypot(xx, xy, xz) || 1;
+      xx /= len; xy /= len; xz /= len;
+
+      const yx = zy * xz - zz * xy;
+      const yy = zz * xx - zx * xz;
+      const yz = zx * xy - zy * xx;
+
+      cam.right = [xx, xy, xz];
+      cam.up = [yx, yy, yz];
+      cam.forward = [-zx, -zy, -zz];
+
+      return new Float32Array([
+        xx, yx, zx, 0,
+        xy, yy, zy, 0,
+        xz, yz, zz, 0,
+        -(xx * eye[0] + xy * eye[1] + xz * eye[2]),
+        -(yx * eye[0] + yy * eye[1] + yz * eye[2]),
+        -(zx * eye[0] + zy * eye[1] + zz * eye[2]),
+        1
+      ]);
+    }
+
+    function multiplyMat4(a, b) {
+      const out = new Float32Array(16);
+      for (let c = 0; c < 4; c++) {
+        for (let r = 0; r < 4; r++) {
+          out[c * 4 + r] =
+            a[0 * 4 + r] * b[c * 4 + 0] +
+            a[1 * 4 + r] * b[c * 4 + 1] +
+            a[2 * 4 + r] * b[c * 4 + 2] +
+            a[3 * 4 + r] * b[c * 4 + 3];
+        }
+      }
+      return out;
+    }
+
+    // =========================================================================
+    // 7. 3D RAYCASTING FOR LIVE MINI-BLOCK HOVER & CLICK FOCUS
+    // =========================================================================
+    const FOV_RAD = 42.0 * Math.PI / 180.0;
+
+    function raycastVoxel(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const nx = ((clientX - rect.left) / rect.width) * 2.0 - 1.0;
+      const ny = 1.0 - ((clientY - rect.top) / rect.height) * 2.0;
+      const aspect = rect.width / Math.max(1, rect.height);
+      const tanHalfFov = Math.tan(FOV_RAD * 0.5);
+
+      const rx = cam.forward[0] + cam.right[0] * nx * aspect * tanHalfFov + cam.up[0] * ny * tanHalfFov;
+      const ry = cam.forward[1] + cam.right[1] * nx * aspect * tanHalfFov + cam.up[1] * ny * tanHalfFov;
+      const rz = cam.forward[2] + cam.right[2] * nx * aspect * tanHalfFov + cam.up[2] * ny * tanHalfFov;
+      const rLen = Math.hypot(rx, ry, rz) || 1.0;
+      const dx = rx / rLen, dy = ry / rLen, dz = rz / rLen;
+
+      // Step along ray inside the bounding sphere of the voxel world
+      const maxSteps = 460;
+      const stepSize = 0.85;
+      let t = Math.max(4.0, cam.dist - 180.0);
+
+      for (let s = 0; s < maxSteps; s++) {
+        const vx = Math.round(cam.pos[0] + dx * t);
+        const vy = Math.round(cam.pos[1] + dy * t);
+        const vz = Math.round(cam.pos[2] + dz * t);
+
+        if (vx <= state.sliceX && vy <= state.sliceY && inBounds(vx, vy, vz)) {
+          const m = getVoxel(vx, vy, vz);
+          if (m !== 0) {
+            const zId = zoneGrid[idx(vx, vy, vz)];
+            if (state.activeZone === 0 || zId === state.activeZone) {
+              return { x: vx, y: vy, z: vz, mat: m, zone: zId };
+            }
+          }
+        }
+        t += stepSize;
+      }
+      return null;
+    }
+
+    function updateInspectorUI(hit) {
+      if (!hit) {
+        state.hoverVoxel = [-999, -999, -999];
+        return;
+      }
+      state.hoverVoxel = [hit.x, hit.y, hit.z];
+      const matInfo = MATERIALS[hit.mat] || MATERIALS[7];
+      const zoneName = ZONES[hit.zone] || "Volcanic Citadel";
+
+      document.getElementById("inspector-swatch").style.background = matInfo.hex;
+      document.getElementById("inspector-mat-name").textContent = matInfo.name;
+      document.getElementById("inspector-zone-name").textContent = zoneName;
+      const sx = hit.x >= 0 ? `+${hit.x}` : `${hit.x}`;
+      const sy = hit.y >= 0 ? `+${hit.y}` : `${hit.y}`;
+      const sz = hit.z >= 0 ? `+${hit.z}` : `${hit.z}`;
+      document.getElementById("inspector-xyz").textContent = `[${sx}, ${sy}, ${sz}]`;
+      document.getElementById("inspector-coords").textContent = `Block #${hit.mat}`;
+      document.getElementById("inspector-temp").textContent = matInfo.temp;
+      const aoEst = (0.72 + 0.26 * hash3(hit.x, hit.y, hit.z)).toFixed(2);
+      document.getElementById("inspector-ao").textContent = aoEst;
+    }
+
+    // =========================================================================
+    // 8. INTERACTIVE MOUSE / TOUCH / UI EVENT HANDLERS
+    // =========================================================================
+    let isDragging = false;
+    let dragMode = "orbit"; // "orbit" or "pan"
+    let lastMouseX = 0, lastMouseY = 0;
+    let downMouseX = 0, downMouseY = 0;
+
+    canvas.addEventListener("contextmenu", e => e.preventDefault());
+
+    canvas.addEventListener("pointerdown", e => {
+      isDragging = true;
+      lastMouseX = downMouseX = e.clientX;
+      lastMouseY = downMouseY = e.clientY;
+      dragMode = (e.button === 2 || e.button === 1 || e.shiftKey) ? "pan" : "orbit";
+      canvas.setPointerCapture(e.pointerId);
+    });
+
+    canvas.addEventListener("pointermove", e => {
+      if (!isDragging) {
+        const hit = raycastVoxel(e.clientX, e.clientY);
+        updateInspectorUI(hit);
+        return;
+      }
+      const dx = e.clientX - lastMouseX;
+      const dy = e.clientY - lastMouseY;
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+
+      if (dragMode === "orbit") {
+        cam.goalYaw   -= dx * 0.0065;
+        cam.goalPitch  = clamp(cam.goalPitch + dy * 0.0055, -1.35, 1.42);
+      } else {
+        const panScale = cam.dist * 0.0016;
+        cam.goalTarget[0] -= (cam.right[0] * dx - cam.up[0] * dy) * panScale;
+        cam.goalTarget[1] -= (cam.right[1] * dx - cam.up[1] * dy) * panScale;
+        cam.goalTarget[2] -= (cam.right[2] * dx - cam.up[2] * dy) * panScale;
+      }
+    });
+
+    canvas.addEventListener("pointerup", e => {
+      isDragging = false;
+      const moveDist = Math.hypot(e.clientX - downMouseX, e.clientY - downMouseY);
+      if (moveDist < 4 && e.button === 0) {
+        // Click on any mini-block to smoothly focus camera target onto that block!
+        const hit = raycastVoxel(e.clientX, e.clientY);
+        if (hit) {
+          cam.goalTarget = [hit.x, hit.y, hit.z];
+          updateInspectorUI(hit);
+        }
+      }
+    });
+
+    canvas.addEventListener("wheel", e => {
+      e.preventDefault();
+      const zoomFactor = Math.exp(e.deltaY * 0.0011);
+      cam.goalDist = clamp(cam.goalDist * zoomFactor, 26.0, 480.0);
+    }, { passive: false });
+
+    // Camera Preset Buttons
+    document.querySelectorAll(".preset-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        applyCameraPreset(btn.dataset.preset);
+      });
+    });
+
+    // Quick Zoom & Reset Buttons
+    document.getElementById("btn-zoom-in").addEventListener("click", () => {
+      cam.goalDist = clamp(cam.goalDist * 0.72, 26.0, 480.0);
+    });
+    document.getElementById("btn-zoom-out").addEventListener("click", () => {
+      cam.goalDist = clamp(cam.goalDist * 1.35, 26.0, 480.0);
+    });
+    document.getElementById("btn-reset-cam").addEventListener("click", () => {
+      applyCameraPreset("poster");
+    });
+
+    // Auto-Orbit & Full View Toggles
+    const btnAutoOrbit = document.getElementById("btn-auto-orbit");
+    btnAutoOrbit.addEventListener("click", () => {
+      cam.autoOrbit = !cam.autoOrbit;
+      btnAutoOrbit.classList.toggle("active", cam.autoOrbit);
+    });
+
+    const btnZen = document.getElementById("btn-zen-mode");
+    btnZen.addEventListener("click", () => {
+      document.body.classList.toggle("zen-mode");
+      btnZen.classList.toggle("active", document.body.classList.contains("zen-mode"));
+    });
+
+    // Mini-Block Scale / Exploded View Controls
+    const sliderScale = document.getElementById("slider-block-scale");
+    const valScale = document.getElementById("val-block-scale");
+    const btnExplodeQuick = document.getElementById("btn-explode-quick");
+
+    function setBlockScalePercent(pct) {
+      sliderScale.value = pct;
+      state.blockScale = pct / 100.0;
+      valScale.textContent = `${pct}%`;
+      document.querySelectorAll("[data-scale]").forEach(b => {
+        b.classList.toggle("active", Number(b.dataset.scale) === Number(pct));
+      });
+      btnExplodeQuick.classList.toggle("active", pct < 95);
+    }
+
+    sliderScale.addEventListener("input", e => setBlockScalePercent(Number(e.target.value)));
+    document.querySelectorAll("[data-scale]").forEach(b => {
+      b.addEventListener("click", () => setBlockScalePercent(Number(b.dataset.scale)));
+    });
+    btnExplodeQuick.addEventListener("click", () => {
+      setBlockScalePercent(state.blockScale > 0.92 ? 78 : 100);
+    });
+
+    // Bevel & Magma Sliders
+    const sliderBevel = document.getElementById("slider-bevel");
+    sliderBevel.addEventListener("input", e => {
+      state.bevelStrength = Number(e.target.value) / 100.0;
+      document.getElementById("val-bevel").textContent = state.bevelStrength.toFixed(2);
+    });
+
+    const sliderMagma = document.getElementById("slider-magma");
+    sliderMagma.addEventListener("input", e => {
+      state.magmaIntensity = Number(e.target.value) / 100.0;
+      document.getElementById("val-magma").textContent = `${state.magmaIntensity.toFixed(2)}×`;
+    });
+
+    // Cross-Section Cutaway Sliders & Buttons
+    const sliderSliceX = document.getElementById("slider-slice-x");
+    const sliderSliceY = document.getElementById("slider-slice-y");
+
+    function updateCrossSection(sx, sy) {
+      state.sliceX = sx;
+      state.sliceY = sy;
+      sliderSliceX.value = sx;
+      sliderSliceY.value = sy;
+      document.getElementById("val-slice-x").textContent = sx >= 72 ? "Full (+72)" : `X ≤ ${sx}`;
+      document.getElementById("val-slice-y").textContent = sy >= 144 ? "Full (+144)" : `Y ≤ ${sy}`;
+      extractSurfaceVoxels(sx, sy);
+      uploadInstanceBuffers();
+    }
+
+    sliderSliceX.addEventListener("input", e => updateCrossSection(Number(e.target.value), state.sliceY));
+    sliderSliceY.addEventListener("input", e => updateCrossSection(state.sliceX, Number(e.target.value)));
+
+    document.getElementById("btn-reset-slice").addEventListener("click", () => updateCrossSection(72, 144));
+    document.getElementById("btn-cut-conduit").addEventListener("click", () => {
+      updateCrossSection(4, 144);
+      cam.goalYaw = 0.65;
+      cam.goalPitch = 0.16;
+      cam.goalDist = 240;
+      cam.goalTarget = [0, 0, 4];
+    });
+    document.getElementById("btn-cut-caldera").addEventListener("click", () => {
+      updateCrossSection(72, 58);
+      cam.goalYaw = 0.18;
+      cam.goalPitch = 0.58;
+      cam.goalDist = 165;
+      cam.goalTarget = [0, 42, 4];
+    });
+
+    // Structural Layer Filter Buttons
+    document.querySelectorAll("[data-zone]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        state.activeZone = Number(btn.dataset.zone);
+        document.querySelectorAll("[data-zone]").forEach(b => b.classList.toggle("active", b === btn));
+      });
+    });
+
+    // Atmospheric Theme Buttons
+    document.querySelectorAll("[data-theme]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        state.theme = Number(btn.dataset.theme);
+        document.querySelectorAll("[data-theme]").forEach(b => b.classList.toggle("active", b === btn));
+      });
+    });
+
+    // Reference Lightbox Modal
+    const refModal = document.getElementById("ref-modal");
+    document.getElementById("btn-expand-ref").addEventListener("click", () => refModal.classList.add("open"));
+    document.getElementById("ref-thumb-trigger").addEventListener("click", () => refModal.classList.add("open"));
+    document.getElementById("btn-close-ref").addEventListener("click", () => refModal.classList.remove("open"));
+    refModal.addEventListener("click", e => { if (e.target === refModal) refModal.classList.remove("open"); });
+
+    // Expose programmatic hook for automated verification / camera tour
+    window.__setVoxelTestView = (presetKey, opts = {}) => {
+      if (presetKey && PRESETS[presetKey]) {
+        const p = PRESETS[presetKey];
+        cam.yaw = cam.goalYaw = p.yaw;
+        cam.pitch = cam.goalPitch = p.pitch;
+        cam.dist = cam.goalDist = p.dist;
+        cam.target = [...p.target];
+        cam.goalTarget = [...p.target];
+        document.querySelectorAll(".preset-btn").forEach(btn => {
+          btn.classList.toggle("active", btn.dataset.preset === presetKey);
+        });
+      }
+      if (opts.blockScale !== undefined) setBlockScalePercent(opts.blockScale);
+      if (opts.sliceX !== undefined || opts.sliceY !== undefined) {
+        updateCrossSection(opts.sliceX ?? 72, opts.sliceY ?? 144);
+      }
+      if (opts.theme !== undefined) state.theme = opts.theme;
+      if (opts.yaw !== undefined) cam.yaw = cam.goalYaw = opts.yaw;
+      if (opts.pitch !== undefined) cam.pitch = cam.goalPitch = opts.pitch;
+      if (opts.dist !== undefined) cam.dist = cam.goalDist = opts.dist;
+    };
+
+    // =========================================================================
+    // 9. INITIALIZE WORLD & START 60 FPS RENDER LOOP
+    // =========================================================================
+    function resizeCanvas() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2.0);
+      const w = Math.floor(window.innerWidth * dpr);
+      const h = Math.floor(window.innerHeight * dpr);
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    // Cache uniform locations
+    const bgUniforms = {
+      time: gl.getUniformLocation(bgProg, "u_time"),
+      res: gl.getUniformLocation(bgProg, "u_resolution"),
+      angles: gl.getUniformLocation(bgProg, "u_camAngles"),
+      theme: gl.getUniformLocation(bgProg, "u_theme")
+    };
+
+    const voxUniforms = {
+      viewProj: gl.getUniformLocation(voxelProg, "u_viewProj"),
+      blockScale: gl.getUniformLocation(voxelProg, "u_blockScale"),
+      time: gl.getUniformLocation(voxelProg, "u_time"),
+      activeZone: gl.getUniformLocation(voxelProg, "u_activeZone"),
+      hoverVoxel: gl.getUniformLocation(voxelProg, "u_hoverVoxel"),
+      camPos: gl.getUniformLocation(voxelProg, "u_camPos"),
+      bevel: gl.getUniformLocation(voxelProg, "u_bevelStrength"),
+      magma: gl.getUniformLocation(voxelProg, "u_magmaIntensity"),
+      theme: gl.getUniformLocation(voxelProg, "u_theme")
+    };
+
+    const glowUniforms = {
+      viewProj: gl.getUniformLocation(glowProg, "u_viewProj"),
+      camRight: gl.getUniformLocation(glowProg, "u_camRight"),
+      camUp: gl.getUniformLocation(glowProg, "u_camUp"),
+      magma: gl.getUniformLocation(glowProg, "u_magmaIntensity"),
+      activeZone: gl.getUniformLocation(glowProg, "u_activeZone")
+    };
+
+    // Build the 3D voxel world on startup
+    requestAnimationFrame(() => {
+      generateVoxelWorld();
+      extractSurfaceVoxels(72, 144);
+      uploadInstanceBuffers();
+      document.getElementById("loading-screen").classList.add("hidden");
+
+      let lastTime = performance.now();
+      let frameCount = 0;
+      let fpsTimer = lastTime;
+
+      function renderFrame(now) {
+        const dt = Math.min(0.05, (now - lastTime) * 0.001);
+        lastTime = now;
+        const timeSec = now * 0.001;
+
+        frameCount++;
+        if (now - fpsTimer >= 500) {
+          const fps = Math.round((frameCount * 1000) / (now - fpsTimer));
+          document.getElementById("stat-fps").textContent = `${fps} FPS`;
+          frameCount = 0;
+          fpsTimer = now;
+        }
+
+        if (cam.autoOrbit && !isDragging) {
+          cam.goalYaw += dt * 0.28;
+        }
+
+        // Smooth damping toward goal camera state
+        const damp = 1.0 - Math.exp(-dt * 10.0);
+        cam.yaw   = lerp(cam.yaw, cam.goalYaw, damp);
+        cam.pitch = lerp(cam.pitch, cam.goalPitch, damp);
+        cam.dist  = lerp(cam.dist, cam.goalDist, damp);
+        cam.target[0] = lerp(cam.target[0], cam.goalTarget[0], damp);
+        cam.target[1] = lerp(cam.target[1], cam.goalTarget[1], damp);
+        cam.target[2] = lerp(cam.target[2], cam.goalTarget[2], damp);
+
+        const zoomRatio = (470.0 / cam.dist).toFixed(2);
+        document.getElementById("stat-zoom").textContent = `${zoomRatio}×`;
+
+        const cosP = Math.cos(cam.pitch), sinP = Math.sin(cam.pitch);
+        const cosY = Math.cos(cam.yaw),   sinY = Math.sin(cam.yaw);
+        cam.pos[0] = cam.target[0] + cam.dist * cosP * sinY;
+        cam.pos[1] = cam.target[1] + cam.dist * sinP;
+        cam.pos[2] = cam.target[2] + cam.dist * cosP * cosY;
+
+        resizeCanvas();
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        // PASS 1: Full-screen Atmospheric Volcanic Sky & Canyon Backdrop
+        gl.disable(gl.DEPTH_TEST);
+        gl.disable(gl.BLEND);
+        gl.useProgram(bgProg);
+        gl.bindVertexArray(bgVAO);
+        gl.uniform1f(bgUniforms.time, timeSec);
+        gl.uniform2f(bgUniforms.res, canvas.width, canvas.height);
+        gl.uniform2f(bgUniforms.angles, cam.yaw, cam.pitch);
+        gl.uniform1i(bgUniforms.theme, state.theme);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+        // Compute View-Projection Matrix
+        const aspect = canvas.width / Math.max(1, canvas.height);
+        const proj = perspectiveMatrix(FOV_RAD, aspect, 2.0, 1200.0);
+        const view = lookAtMatrix(cam.pos, cam.target, [0, 1, 0]);
+        const viewProj = multiplyMat4(proj, view);
+
+        // PASS 2: Hardware-Instanced 3D Voxel Mini-Blocks
+        gl.enable(gl.DEPTH_TEST);
+        gl.depthMask(true);
+        gl.enable(gl.CULL_FACE);
+        gl.cullFace(gl.BACK);
+
+        gl.useProgram(voxelProg);
+        gl.bindVertexArray(voxelVAO);
+        gl.uniformMatrix4fv(voxUniforms.viewProj, false, viewProj);
+        gl.uniform1f(voxUniforms.blockScale, state.blockScale);
+        gl.uniform1f(voxUniforms.time, timeSec);
+        gl.uniform1i(voxUniforms.activeZone, state.activeZone);
+        gl.uniform3fv(voxUniforms.hoverVoxel, state.hoverVoxel);
+        gl.uniform3fv(voxUniforms.camPos, cam.pos);
+        gl.uniform1f(voxUniforms.bevel, state.bevelStrength);
+        gl.uniform1f(voxUniforms.magma, state.magmaIntensity);
+        gl.uniform1i(voxUniforms.theme, state.theme);
+
+        gl.drawElementsInstanced(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0, activeInstanceCount);
+
+        // PASS 3: Additive Volumetric Magma Glow Halos
+        if (state.theme !== 3) {
+          gl.disable(gl.CULL_FACE);
+          gl.depthMask(false);
+          gl.enable(gl.BLEND);
+          gl.blendFunc(gl.ONE, gl.ONE);
+
+          gl.useProgram(glowProg);
+          gl.bindVertexArray(glowVAO);
+          gl.uniformMatrix4fv(glowUniforms.viewProj, false, viewProj);
+          gl.uniform3fv(glowUniforms.camRight, cam.right);
+          gl.uniform3fv(glowUniforms.camUp, cam.up);
+          gl.uniform1f(glowUniforms.magma, state.magmaIntensity);
+          gl.uniform1i(glowUniforms.activeZone, state.activeZone);
+
+          gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, glowSprites.length);
+
+          gl.disable(gl.BLEND);
+          gl.depthMask(true);
+        }
+
+        requestAnimationFrame(renderFrame);
+      }
+
+      requestAnimationFrame(renderFrame);
+    });
+  })();
+  </script>
+</body>
+</html>
